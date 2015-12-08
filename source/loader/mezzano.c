@@ -232,18 +232,16 @@ static void generate_memory_map(mmu_context_t *mmu, mezzanine_boot_information_t
 	// TODO, eventually the system will need to know about ACPI reclaim/NVS areas.
 
 	void *buf __cleanup_free;
-	size_t num_entries, entry_size, size;
+	size_t num_entries, entry_size;
 
 	bios_memory_get_mmap(&buf, &num_entries, &entry_size);
-	size = num_entries * entry_size;
-
 	for(size_t i = 0; i < num_entries; i++) {
 		e820_entry_t *entry = buf + (i * entry_size);
 
 		// Map liberally, it doesn't matter if free regions overlap with allocated
 		// regions. It's more important that the entire region is mapped.
-		phys_ptr_t start = round_down(entry[i].start, PAGE_SIZE);
-		phys_ptr_t end = round_up(entry[i].start + entry[i].length, PAGE_SIZE);
+		phys_ptr_t start = round_down(entry->start, PAGE_SIZE);
+		phys_ptr_t end = round_up(entry->start + entry->length, PAGE_SIZE);
 
 		// Ignore this region if exceeds the map area limit.
 		if(start >= mezzanine_physical_map_size) {
@@ -262,7 +260,7 @@ static void generate_memory_map(mmu_context_t *mmu, mezzanine_boot_information_t
 		}
 
 		dprintf("mezzanine: Map E820 region %016" PRIx64 "-%016" PRIx64 " %016" PRIx64 "-%016" PRIx64 "\n",
-			entry[i].start, entry[i].start + entry[i].length, start, end);
+			entry->start, entry->start + entry->length, start, end);
 
 		// Map the memory into the physical map region.
 		mmu_map(mmu, mezzanine_physical_map_address + start, start, end - start);
@@ -527,11 +525,12 @@ static void *read_cached_block(mezzanine_loader_t *loader, uint64_t block_id) {
 			       0, // flags
 			       &phys_addr);
 
-	if(!device_read(loader->disk,
-			e->data,
-			0x1000,
-			block_id * 0x1000)) {
-		boot_error("Could not read block %" PRIu64, block_id);
+	status_t st = device_read(loader->disk,
+				  e->data,
+				  0x1000,
+				  block_id * 0x1000);
+	if(st) {
+		boot_error("Could not read block %" PRIu64 ": %pS", block_id, st);
 	}
 
 	return e->data;
@@ -582,11 +581,12 @@ static void load_page(mezzanine_loader_t *loader, mmu_context_t *mmu, uint64_t v
 	if(info & BLOCK_MAP_ZERO_FILL) {
 		memset(bootloader_virt, 0, PAGE_SIZE);
 	} else {
-		if(!device_read(loader->disk,
-				bootloader_virt,
-				0x1000,
-				(info >> BLOCK_MAP_ID_SHIFT) * 0x1000)) {
-			boot_error("Could not read block %" PRIu64 " for virtual address %" PRIx64, info, virtual);
+		status_t st = device_read(loader->disk,
+					  bootloader_virt,
+					  0x1000,
+					  (info >> BLOCK_MAP_ID_SHIFT) * 0x1000);
+		if(st) {
+			boot_error("Could not read block %" PRIu64 " for virtual address %" PRIx64 ": %pS", info, virtual, st);
 		}
 	}
 }
@@ -808,7 +808,7 @@ static bool config_cmd_mezzanine(value_list_t *args) {
 
 	if(args->count != 1 ||
 	   args->values[0].type != VALUE_TYPE_STRING) {
-		dprintf("config: mezzanine: invalid arguments\n");
+		config_error("config: mezzanine: invalid arguments\n");
 		return false;
 	}
 
@@ -816,7 +816,7 @@ static bool config_cmd_mezzanine(value_list_t *args) {
 
 	/* Verify the device exists and is compatible (disks only, currently). */
 	if(!device || device->type != DEVICE_TYPE_DISK) {
-		dprintf("mezzanine: Invalid or unsupported device.\n");
+		config_error("mezzanine: Invalid or unsupported device.\n");
 		return false;
 	}
 
@@ -826,19 +826,20 @@ static bool config_cmd_mezzanine(value_list_t *args) {
 	data->disk = device;
 
 	/* Read in the header. */
-	if(!device_read(data->disk, &data->header, sizeof(mezzanine_header_t), 0)) {
-		dprintf("mezzanine: IO error, unable to read header.\n");
+	status_t st = device_read(data->disk, &data->header, sizeof(mezzanine_header_t), 0);
+	if(st) {
+		config_error("mezzanine: IO error, unable to read header: %pS\n", st);
 		goto fail;
 	}
 
 	if(memcmp(data->header.magic, mezzanine_magic, 16) != 0) {
-		dprintf("mezzanine: Not a mezzanine image, bad header.\n");
+		config_error("mezzanine: Not a mezzanine image, bad header.\n");
 		goto fail;
 	}
 
 	if(data->header.protocol_major != mezzanine_protocol_major) {
-		dprintf("mezzanine: Unsupported protocol major %" PRIu8 ".\n",
-			data->header.protocol_major);
+		config_error("mezzanine: Unsupported protocol major %" PRIu8 ".\n",
+			     data->header.protocol_major);
 		goto fail;
 	}
 
@@ -847,8 +848,8 @@ static bool config_cmd_mezzanine(value_list_t *args) {
 	// compatible at the minor level.
 	if((data->header.protocol_major == 0 && data->header.protocol_minor != mezzanine_protocol_minor) ||
 	   (data->header.protocol_major != 0 && data->header.protocol_minor > mezzanine_protocol_minor)) {
-		dprintf("mezzanine: Unsupported protocol minor %" PRIu8 ".\n",
-			data->header.protocol_minor);
+		config_error("mezzanine: Unsupported protocol minor %" PRIu8 ".\n",
+			     data->header.protocol_minor);
 		goto fail;
 	}
 
@@ -865,7 +866,7 @@ static bool config_cmd_mezzanine(value_list_t *args) {
 	dprintf("mezzanine: Entry fref at %08" PRIx64 ". Initial process at %08" PRIx64 ".\n",
 		data->header.entry_fref, data->header.initial_process);
 
-	current_environ->loader = &mezzanine_loader_ops;
+	environ_set_loader(current_environ, &mezzanine_loader_ops, data);
 
 	return true;
 fail:
