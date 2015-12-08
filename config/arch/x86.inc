@@ -21,5 +21,6 @@ include = {
         'TARGET_HAS_KBOOT32': True,
         'TARGET_HAS_KBOOT64': True,
         'TARGET_HAS_LINUX': True,
+        'TARGET_HAS_MEZZANO': True,
     },
 }
