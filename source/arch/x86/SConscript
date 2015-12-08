@@ -23,6 +23,7 @@ sources = FeatureSources(config, [
     'loader/linux.c',
     'loader/multiboot.c',
     'loader/multiboot_enter.S',
+    'loader/mezzano_enter.S',
 
     'arch.c',
     'backtrace.c',
