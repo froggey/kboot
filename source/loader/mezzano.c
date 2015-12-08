@@ -853,6 +853,8 @@ static bool config_cmd_mezzanine(value_list_t *args) {
 		goto fail;
 	}
 
+	video_env_init(current_environ, "video_mode", VIDEO_MODE_LFB, NULL);
+
 	dprintf("mezzanine: Loading image %02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x on device %s with protocol version %" PRIu8 ".%" PRIu8 "\n",
 		data->header.uuid[0], data->header.uuid[1], data->header.uuid[2],
 		data->header.uuid[3], data->header.uuid[4], data->header.uuid[5],
