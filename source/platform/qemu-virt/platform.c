@@ -40,6 +40,7 @@ void qemu_virt_main(void) {
 
 /** Detect and register all devices. */
 void target_device_probe(void) {
+    virtio_mmio_detect((void *)0x0a000000, 32);
 }
 
 /** Reboot the system. */
