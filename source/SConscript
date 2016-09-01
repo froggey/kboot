@@ -31,6 +31,7 @@ sources = FeatureSources(config, [
     'lib/printf.c',
     'lib/qsort.c',
     'lib/string.c',
+    'lib/memchr.c',
     'lib/tinfl.c',
 
     ('TARGET_HAS_KBOOT64', 'TARGET_HAS_KBOOT32', 'loader/kboot.c'),
@@ -54,6 +55,15 @@ sources = FeatureSources(config, [
     'time.c',
     ('TARGET_HAS_UI', 'ui.c'),
     ('TARGET_HAS_VIDEO', 'video.c'),
+
+    ('TARGET_HAS_FDT', 'lib/fdt/fdt.c'),
+    ('TARGET_HAS_FDT', 'lib/fdt/fdt_addresses.c'),
+    ('TARGET_HAS_FDT', 'lib/fdt/fdt_empty_tree.c'),
+    ('TARGET_HAS_FDT', 'lib/fdt/fdt_ro.c'),
+    ('TARGET_HAS_FDT', 'lib/fdt/fdt_rw.c'),
+    ('TARGET_HAS_FDT', 'lib/fdt/fdt_strerror.c'),
+    ('TARGET_HAS_FDT', 'lib/fdt/fdt_sw.c'),
+    ('TARGET_HAS_FDT', 'lib/fdt/fdt_wip.c'),
 ])
 
 # Set the include search paths.
@@ -62,6 +72,11 @@ env['CPPPATH'] = [
     Dir('arch/%s/include' % (config['ARCH'])),
     Dir('platform/%s/include' % (config['PLATFORM'])),
 ]
+
+if config['TARGET_HAS_FDT']:
+   env['CPPPATH'] += [
+       Dir('lib/fdt/include')
+    ]
 
 # Generate the configuration header.
 f = open('config.h', 'w')
