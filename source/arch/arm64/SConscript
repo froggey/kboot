@@ -21,6 +21,7 @@ from util import FeatureSources
 sources = FeatureSources(config, [
     'arch.c',
     'backtrace.c',
+    'mmu.c',
 ])
 
 # Prevent FPU code generation.
