@@ -19,6 +19,8 @@
  * @brief               qemu-virt memory detection code.
  */
 
+#include <qemu-virt/qemu-virt.h>
+
 #include <lib/string.h>
 #include <lib/utility.h>
 
@@ -28,15 +30,13 @@
 
 #include <libfdt.h>
 
-/** Detect physical memory. */
-void target_memory_probe(void) {
+uint64_t qemu_virt_total_memory(void) {
     size_t total_memory = 0x08000000; /* 512MB by default */
 
     /* look for a flattened device tree at the start of physical memory */
     const void *fdt = (void *)0x40000000;
     int err = fdt_check_header(fdt);
     if (err >= 0) {
-        dprintf("Device tree:\n");
         /* walk the nodes, looking for 'memory' */
         int depth = 0;
         int offset = 0;
@@ -49,15 +49,6 @@ void target_memory_probe(void) {
             const char *name = fdt_get_name(fdt, offset, NULL);
             if (!name)
                 continue;
-
-            dprintf("  %s\n", name);
-
-            int prop_offset = fdt_first_property_offset(fdt, offset);
-            while(prop_offset >= 0) {
-                const struct fdt_property *prop = fdt_get_property_by_offset(fdt, prop_offset, NULL);
-                dprintf("    %s\n", fdt_string(fdt, fdt32_to_cpu(prop->nameoff)));
-                prop_offset = fdt_next_property_offset(fdt, prop_offset);
-            }
 
             /* look for the properties we care about */
             if (strcmp(name, "memory") == 0) {
@@ -73,6 +64,13 @@ void target_memory_probe(void) {
             }
         }
     }
+
+    return total_memory;
+}
+
+/** Detect physical memory. */
+void target_memory_probe(void) {
+    size_t total_memory = qemu_virt_total_memory();
 
     /* Physical memory starts at 1GB and extends upwards to a maximum of 512GB.
      * Exclude the first 64kb which contains the FDT. */
