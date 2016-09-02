@@ -1,5 +1,6 @@
 #
-# Copyright (C) 2014-2015 Alex Smith
+# Copyright (C) 2014 Alex Smith
+# Copyright (C) 2015 Henry Harrington
 #
 # Permission to use, copy, modify, and/or distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -17,22 +18,17 @@
 Import('config', 'defaults', 'env')
 from util import FeatureSources
 
-# Handle dependencies.
-if any(k.startswith('DRIVER_SERIAL_') and v for k, v in config.items()):
-    config['DRIVER_CONSOLE_SERIAL'] = True
-if any(k.startswith('DRIVER_VIRTIO_') and v for k, v in config.items()):
-    config['DRIVER_VIRTIO'] = True
-
 sources = FeatureSources(config, [
-    ('DRIVER_SERIAL_NS16550', 'serial/ns16550.c'),
-
-    ('DRIVER_CONSOLE_FB',  'console/fb.c'),
-    ('DRIVER_CONSOLE_FB',  'console/font.c'),
-    ('DRIVER_CONSOLE_SERIAL', 'console/serial.c'),
-    ('DRIVER_CONSOLE_VGA', 'console/vga.c'),
-
-    ('DRIVER_VIRTIO', 'virtio/virtio.c'),
-    ('DRIVER_VIRTIO_BLOCK', 'virtio/virtio-block.c'),
+    'console.c',
+    'memory.c',
+    'platform.c',
+    'start.S',
 ])
+
+# Set the linker script path.
+env['LDSCRIPT'] = env.LDScript('link.ld', 'link.ld.in')
+
+# Build the final executable.
+defaults.append(env['KBOOT'])
 
 Return('sources')
