@@ -19,6 +19,8 @@ Import('config', 'defaults', 'env')
 from util import FeatureSources
 
 sources = FeatureSources(config, [
+    'loader/mezzano.c',
+
     'console.c',
     'memory.c',
     'platform.c',

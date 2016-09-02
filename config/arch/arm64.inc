@@ -19,5 +19,6 @@ include = {
     'config': {
         'ARCH': 'arm64',
         'ARCH_ARM64': True,
+        'TARGET_HAS_MEZZANO': True,
     },
 }
