@@ -54,7 +54,7 @@ static void crunch_memory_map(mezzano_boot_information_t *boot_info) {
     // TODO.
 }
 
-void mezzano_insert_into_memory_map(mezzano_boot_information_t *boot_info, uint64_t start, uint64_t end) {
+static void mezzano_insert_into_memory_map(mezzano_boot_information_t *boot_info, uint64_t start, uint64_t end) {
     // Search for a existing region to merge with/insert after.
     uint64_t i = 0;
     for(; i < boot_info->n_memory_map_entries; i += 1) {
@@ -89,6 +89,68 @@ void mezzano_insert_into_memory_map(mezzano_boot_information_t *boot_info, uint6
     boot_info->n_memory_map_entries += 1;
 
     crunch_memory_map(boot_info);
+}
+
+void mezzano_add_physical_memory_range(mmu_context_t *mmu, mezzano_boot_information_t *boot_info, phys_ptr_t orig_start, phys_ptr_t orig_end) {
+    // Map liberally, it doesn't matter if free regions overlap with allocated
+    // regions. It's more important that the entire region is mapped.
+    phys_ptr_t start = round_down(orig_start, PAGE_SIZE);
+    phys_ptr_t end = round_up(orig_end, PAGE_SIZE);
+
+    // Ignore this region if exceeds the map area limit.
+    if(start >= mezzano_physical_map_size) {
+        return;
+    }
+
+    // Trim it if it starts below the limit.
+    if(end > mezzano_physical_map_size) {
+        end = mezzano_physical_map_size;
+    }
+
+    /* What we did above may have made the region too small,
+     * ignore it if this is the case. */
+    if(end <= start) {
+        return;
+    }
+
+    dprintf("mezzano: Map physical memory region %016" PRIx64 "-%016" PRIx64 " %016" PRIx64 "-%016" PRIx64 "\n",
+            orig_start, orig_end, start, end);
+
+    // Map the memory into the physical map region.
+    mmu_map(mmu, mezzano_physical_map_address + start, start, end - start);
+
+    // Carefully insert it into the memory map, maintaining the sortedness.
+    mezzano_insert_into_memory_map(boot_info, start, end);
+}
+
+static void mezzano_finalize_memory_map(mmu_context_t *mmu, mezzano_boot_information_t *boot_info) {
+    dprintf("mezzano: Final memory map:\n");
+    for(uint64_t i = 0; i < boot_info->n_memory_map_entries; i += 1) {
+        dprintf("  %016" PRIx64 "-%016" PRIx64 "\n",
+            boot_info->memory_map[i].start,
+            boot_info->memory_map[i].end);
+    }
+
+    // Allocate the information structs for all the pages in the memory map.
+    // FIXME: This has a bit of a problem with overlap, leaking a few pages.
+    for(uint64_t i = 0; i < boot_info->n_memory_map_entries; i += 1) {
+        phys_ptr_t start = boot_info->memory_map[i].start;
+        phys_ptr_t end = boot_info->memory_map[i].end;
+        phys_ptr_t info_start = round_down((mezzano_physical_info_address + (start / PAGE_SIZE) * sizeof(mezzano_page_info_t)), PAGE_SIZE);
+        phys_ptr_t info_end = round_up((mezzano_physical_info_address + (end / PAGE_SIZE) * sizeof(mezzano_page_info_t)), PAGE_SIZE);
+        phys_ptr_t phys_info_addr;
+        dprintf("mezzano: info range %016" PRIx64 "-%016" PRIx64 "\n", info_start, info_end);
+        // FIXME/TODO: It's ok for the backing pages to be discontinuous.
+        // Could use 2MB pages here as well.
+        void *virt = memory_alloc(info_end - info_start, // size
+                      0x1000, // alignment
+                      0x100000, 0, // min/max address
+                      MEMORY_TYPE_ALLOCATED, // type
+                      0, // flags
+                      &phys_info_addr);
+        mmu_map(mmu, info_start, phys_info_addr, info_end - info_start);
+        memset(virt, 0, info_end - info_start);
+    }
 }
 
 static uint64_t page_info_flags(mmu_context_t *mmu, phys_ptr_t page) {
@@ -374,6 +436,7 @@ static __noreturn void mezzano_loader_load(void *_loader) {
     memset(boot_info, 0, PAGE_SIZE);
 
     mezzano_generate_memory_map(mmu, boot_info);
+    mezzano_finalize_memory_map(mmu, boot_info);
 
     for(uint32_t i = 0; i < loader->header.n_extents; ++i) {
         // Each extent must be 4k (page) aligned in memory.
@@ -398,15 +461,7 @@ static __noreturn void mezzano_loader_load(void *_loader) {
 
     loader_preboot();
 
-#ifdef CONFIG_TARGET_HAS_VIDEO
     mezzano_set_video_mode(boot_info);
-#else
-    boot_info->video.framebuffer_physical_address = fixnum(0);
-    boot_info->video.framebuffer_width = fixnum(0);
-    boot_info->video.framebuffer_pitch = fixnum(4);
-    boot_info->video.framebuffer_height = fixnum(0);
-    boot_info->video.framebuffer_layout = fixnum(FRAMEBUFFER_LAYOUT_X8_R8_G8_B8);
-#endif
 
     // Initialize buddy bins.
     for(int i = 0; i < mezzano_n_buddy_bins_32_bit; ++i) {
