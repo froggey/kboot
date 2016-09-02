@@ -25,38 +25,4 @@
 
 #include <types.h>
 
-/** Find first set bit in a native-sized value.
- * @param value         Value to test.
- * @return              Position of first set bit plus 1, or 0 if value is 0. */
-static inline unsigned long ffs(unsigned long value) {
-    if (!value)
-        return 0;
-
-    unsigned long pos = 1;
-
-    while(value) {
-        if(value & 1) {
-            break;
-        }
-        value >>= 1;
-        pos += 1;
-	}
-
-    return pos;
-}
-
-/** Find last set bit in a native-sized value.
- * @param value     Value to test.
- * @return          Position of last set bit plus 1, or 0 if value is 0. */
-static inline unsigned long fls(unsigned long value) {
-    unsigned long pos = 0;
-
-    while(value) {
-        value >>= 1;
-        pos += 1;
-	}
-
-    return pos;
-}
-
 #endif /* __ARCH_BITOPS_H */

@@ -34,6 +34,7 @@ static inline unsigned long ffs(unsigned long value) {
     __asm__ ("bsf %1, %0" : "=r" (value) : "rm" (value) : "cc");
     return value + 1;
 }
+#define ARCH_HAVE_FFS 1
 
 /** Find last set bit in a native-sized value.
  * @param value     Value to test.
@@ -45,5 +46,6 @@ static inline unsigned long fls(unsigned long value) {
     __asm__ ("bsr %1, %0" : "=r" (value) : "rm" (value) : "cc");
     return value + 1;
 }
+#define ARCH_HAVE_FLS 1
 
 #endif /* __ARCH_BITOPS_H */

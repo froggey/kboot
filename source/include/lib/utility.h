@@ -115,4 +115,42 @@ static inline bool checksum_range(void *start, size_t size) {
 
 extern void qsort(void *base, size_t nmemb, size_t size, int (*compar)(const void *, const void *));
 
+#if !ARCH_HAVE_FFS
+/** Find first set bit in a native-sized value.
+ * @param value         Value to test.
+ * @return              Position of first set bit plus 1, or 0 if value is 0. */
+static inline unsigned long ffs(unsigned long value) {
+    if (!value)
+        return 0;
+
+    unsigned long pos = 1;
+
+    while(value) {
+        if(value & 1) {
+            break;
+        }
+        value >>= 1;
+        pos += 1;
+	}
+
+    return pos;
+}
+#endif
+
+#if !ARCH_HAVE_FLS
+/** Find last set bit in a native-sized value.
+ * @param value     Value to test.
+ * @return          Position of last set bit plus 1, or 0 if value is 0. */
+static inline unsigned long fls(unsigned long value) {
+    unsigned long pos = 0;
+
+    while(value) {
+        value >>= 1;
+        pos += 1;
+	}
+
+    return pos;
+}
+#endif
+
 #endif /* __LIB_UTILITY_H */
