@@ -20,12 +20,11 @@
  */
 
 #include <arch/page.h>
+#include <arm64/asm.h>
 
-.text
+.section .text, "ax", @progbits
 
-.global _start
-.type _start, @function
-_start:
+FUNCTION_START(_start)
         /* Load stack. */
         ldr x9, =__stack_end
         mov sp, x9
@@ -36,10 +35,11 @@ _start:
         /* Call main. */
         bl qemu_virt_main
         b .
+FUNCTION_END(_start)
 
 .ltorg
 
-.section .bss
+.section .bss, "aw", @nobits
 
 /** Stack. */
 .type loader_stack, @object
