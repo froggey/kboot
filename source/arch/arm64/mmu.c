@@ -68,7 +68,7 @@ static uint64_t *get_ttl2(mmu_context_t *ctx, uint64_t virt, bool alloc) {
             return NULL;
 
         addr = allocate_structure(ctx);
-        ttl0[ttl0e] = addr | ARM64_TTE_PRESENT; // ### bits?
+        ttl0[ttl0e] = addr | ARM64_TTE_PRESENT | ARM64_TTE_TABLE;
     }
 
     /* Get the TTL1 from the TTL0. */
@@ -81,7 +81,7 @@ static uint64_t *get_ttl2(mmu_context_t *ctx, uint64_t virt, bool alloc) {
             return NULL;
 
         addr = allocate_structure(ctx);
-        ttl1[ttl1e] = addr | ARM64_TTE_PRESENT; // ### bits?
+        ttl1[ttl1e] = addr | ARM64_TTE_PRESENT | ARM64_TTE_TABLE;
     }
 
     /* Return the page directory address. */
@@ -101,7 +101,7 @@ static void map_large(mmu_context_t *ctx, uint64_t virt, uint64_t phys) {
 
     ttl2 = get_ttl2(ctx, virt, true);
     pde = (virt % ARM64_TTL2_RANGE) / LARGE_PAGE_SIZE;
-    ttl2[pde] = phys | ARM64_TTE_PRESENT | ARM64_TTE_BLOCK; // ### bits?
+    ttl2[pde] = phys | ARM64_TTE_PRESENT | ARM64_TTE_AF | ARM64_TTE_SH_INNER_SHAREABLE | ARM64_TTE_AP_P_RW_U_NA; // TODO: Cache attributes.
 }
 
 /** Map a small page in a 64-bit context.
@@ -122,7 +122,7 @@ static void map_small(mmu_context_t *ctx, uint64_t virt, uint64_t phys) {
     pde = (virt % ARM64_TTL2_RANGE) / ARM64_TTL3_RANGE;
     if (!(ttl2[pde] & ARM64_TTE_PRESENT)) {
         addr = allocate_structure(ctx);
-        ttl2[pde] = addr | ARM64_TTE_PRESENT; // ### bits?
+        ttl2[pde] = addr | ARM64_TTE_PRESENT | ARM64_TTE_TABLE;
     }
 
     /* Get the page table from the page directory. */
@@ -130,7 +130,7 @@ static void map_small(mmu_context_t *ctx, uint64_t virt, uint64_t phys) {
 
     /* Map the page. */
     pte = (virt % ARM64_TTL3_RANGE) / PAGE_SIZE;
-    ttl3[pte] = phys | ARM64_TTE_PRESENT; // ### bits?
+    ttl3[pte] = phys | ARM64_TTE_PRESENT | ARM64_TTE_PAGE | ARM64_TTE_AF | ARM64_TTE_SH_INNER_SHAREABLE | ARM64_TTE_AP_P_RW_U_NA; // TODO: Cache attributes.
 }
 
 /** Create a mapping in an MMU context.
@@ -232,12 +232,12 @@ static bool mmu_mem_op(mmu_context_t *ctx, uint64_t addr, uint64_t size, unsigne
             if (!(ttl2[pde] & ARM64_TTE_PRESENT))
                 return false;
 
-            if (ttl2[pde] & ARM64_TTE_BLOCK) {
+            if (ttl2[pde] & ARM64_TTE_TABLE) {
+                ttl3 = (uint64_t *)phys_to_virt((ptr_t)(ttl2[pde] & ARM64_TTE_ADDR_MASK));
+            } else {
                 page = (ttl2[pde] & ARM64_TTE_ADDR_MASK) + (addr % LARGE_PAGE_SIZE);
                 page_size = LARGE_PAGE_SIZE - (addr % LARGE_PAGE_SIZE);
                 ttl3 = NULL;
-            } else {
-                ttl3 = (uint64_t *)phys_to_virt((ptr_t)(ttl2[pde] & ARM64_TTE_ADDR_MASK));
             }
         }
 
