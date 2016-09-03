@@ -97,6 +97,56 @@ FUNCTION_START(mezzano_arch_enter_real)
     tlbi    vmalle1
     isb
 
+    /* Load the initial thread into x28 */
+    mov     x28, x5
 
-    b .
+    /* Load stack from the initial thread */
+    ldr     x9, [x28, #31]   /* +thread-stack-pointer+ */
+    add     x9, x9, #0xFFF
+    and     x9, x9, #~0xFFF
+    mov     sp, x9
+
+    /* Prepare for call */
+    mov     x0, x6 /* First argument */
+    mov     x5, #1<<1 /* One argument */
+    mov     x7, x4 /* Call through fref */
+    mov     x29, xzr /* End of frame pointer chain */
+    mov     x30, xzr /* Return address of zero */
+
+    /* Clear other registers */
+    /* Not x0, holds boot info page */
+    mov     x1, xzr
+    mov     x2, xzr
+    mov     x3, xzr
+    mov     x4, xzr
+    /* Not x5, holds argument count */
+    mov     x6, xzr
+    /* Nor x7, holds entry fref */
+    mov     x8, xzr
+    mov     x9, xzr
+    mov     x10, xzr
+    mov     x11, xzr
+    mov     x12, xzr
+    mov     x13, xzr
+    mov     x14, xzr
+    mov     x15, xzr
+    mov     x16, xzr
+    mov     x17, xzr
+    mov     x18, xzr
+    mov     x19, xzr
+    mov     x20, xzr
+    mov     x21, xzr
+    mov     x22, xzr
+    mov     x23, xzr
+    mov     x24, xzr
+    mov     x25, xzr
+    mov     x26, xzr
+    mov     x27, xzr
+    /* Not x28, holds current thread */
+    /* Not x29(fp), holds return address */
+    /* Not x30(lr), holds frame pointer */
+
+    /* Load the entry point and call the function */
+    ldr     x9, [x7, #15] /* +fref-entry-point+ */
+    br      x9
 FUNCTION_END(mezzano_arch_enter_real)
