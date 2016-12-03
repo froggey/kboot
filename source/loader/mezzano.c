@@ -506,10 +506,11 @@ static __noreturn void mezzano_loader_load(void *_loader) {
 
     dprintf("mezzano: Starting system...\n");
     mezzano_arch_enter(transition,
-                 mmu,
-                 loader->header.entry_fref,
-                 loader->header.initial_process,
-                 fixnum(mezzano_physical_map_address + boot_info_page));
+                       mmu,
+                       loader->header.entry_fref,
+                       loader->header.initial_process,
+                       fixnum(mezzano_physical_map_address + boot_info_page),
+                       loader->header.nil);
 }
 
 #if CONFIG_KBOOT_UI
