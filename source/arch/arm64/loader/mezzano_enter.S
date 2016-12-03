@@ -36,7 +36,8 @@
  * @param ttbr1              Final TTBR1. (x3)
  * @param entry_fref         Value of the entry fref. (x4)
  * @param initial_process    Value of the initial process. (x5)
- * @param boot_information_location (fixnum) (x6) */
+ * @param boot_information_location (fixnum) (x6)
+ * @param nil                Value of NIL (x7) */
 FUNCTION_START(mezzano_arch_enter_real)
     /* Caches on */
     mrs     x9, sctlr_el1
@@ -97,8 +98,20 @@ FUNCTION_START(mezzano_arch_enter_real)
     tlbi    vmalle1
     isb
 
+    /* Enable the FP and SIMD registers and instructions in EL0 and EL1. */
+    mrs     x9, cpacr_el1
+    orr     x9, x9, #(3 << 20)
+    msr     cpacr_el1, x9
+    isb
+
     /* Load the initial thread into x28 */
     mov     x28, x5
+
+    /* Load NIL into x26 */
+    mov     x26, x7
+
+    /* Use SP_EL0. */
+    msr     spsel, #0
 
     /* Load stack from the initial thread */
     ldr     x9, [x28, #31]   /* +thread-stack-pointer+ */
@@ -140,7 +153,7 @@ FUNCTION_START(mezzano_arch_enter_real)
     mov     x23, xzr
     mov     x24, xzr
     mov     x25, xzr
-    mov     x26, xzr
+    /* Not x26, holds nil */
     mov     x27, xzr
     /* Not x28, holds current thread */
     /* Not x29(fp), holds return address */

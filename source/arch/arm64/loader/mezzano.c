@@ -25,11 +25,11 @@
 
 extern void __noreturn mezzano_arch_enter_real(phys_ptr_t transition_ttbr0, phys_ptr_t transition_ttbr1,
                                                phys_ptr_t ttbr0, phys_ptr_t ttbr1,
-                                               uint64_t entry_fref, uint64_t initial_process, uint64_t boot_information_location);
+                                               uint64_t entry_fref, uint64_t initial_process, uint64_t boot_information_location, uint64_t nil);
 
 void mezzano_arch_enter(mmu_context_t *transition_pml4, mmu_context_t *pml4,
-                        uint64_t entry_fref, uint64_t initial_process, uint64_t boot_information_location) {
+                        uint64_t entry_fref, uint64_t initial_process, uint64_t boot_information_location, uint64_t nil) {
     mezzano_arch_enter_real(transition_pml4->ttbr0, transition_pml4->ttbr1,
                             pml4->ttbr0, pml4->ttbr1,
-                            entry_fref, initial_process, boot_information_location);
+                            entry_fref, initial_process, boot_information_location, nil);
 }

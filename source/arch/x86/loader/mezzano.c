@@ -23,8 +23,18 @@
 
 #include <x86/mmu.h>
 
-extern void __noreturn mezzano_arch_enter_real(phys_ptr_t transition_pml4, phys_ptr_t pml4, uint64_t entry_fref, uint64_t initial_process, uint64_t boot_information_location);
+extern void __noreturn mezzano_arch_enter_real(phys_ptr_t transition_pml4,
+                                               phys_ptr_t pml4,
+                                               uint64_t entry_fref,
+                                               uint64_t initial_process,
+                                               uint64_t boot_information_location);
 
-void mezzano_arch_enter(mmu_context_t *transition_pml4, mmu_context_t *pml4, uint64_t entry_fref, uint64_t initial_process, uint64_t boot_information_location) {
+void mezzano_arch_enter(mmu_context_t *transition_pml4,
+                        mmu_context_t *pml4,
+                        uint64_t entry_fref,
+                        uint64_t initial_process,
+                        uint64_t boot_information_location,
+                        uint64_t nil) {
+    (void)nil;
     mezzano_arch_enter_real(transition_pml4->cr3, pml4->cr3, entry_fref, initial_process, boot_information_location);
 }

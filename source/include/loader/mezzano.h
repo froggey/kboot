@@ -37,19 +37,25 @@ typedef struct mezzano_extent {
 
 /** On-disk image header. */
 typedef struct mezzano_header {
-    uint8_t magic[16];        /* +0 */
-    uint8_t uuid[16];        /* +16 */
-    uint16_t protocol_major;    /* +32 */
-    uint16_t protocol_minor;    /* +34 */
-    uint32_t n_extents;        /* +36 */
-    uint64_t entry_fref;        /* +40 */
-    uint64_t initial_process;    /* +48 */
-    uint64_t nil;            /* +56 */
-    uint8_t _pad2[32];        /* +64 */
-    uint64_t bml4;           /* +96 */
-    uint64_t freelist_head;        /* +104 */
+    uint8_t magic[16];               /* +0 */
+    uint8_t uuid[16];                /* +16 */
+    uint16_t protocol_major;         /* +32 */
+    uint16_t protocol_minor;         /* +34 */
+    uint32_t n_extents;              /* +36 */
+    uint64_t entry_fref;             /* +40 */
+    uint64_t initial_process;        /* +48 */
+    uint64_t nil;                    /* +56 */
+    uint8_t architecture;            /* +64 */
+    uint8_t _pad2[31];               /* +65 */
+    uint64_t bml4;                   /* +96 */
+    uint64_t freelist_head;          /* +104 */
     mezzano_extent_t extents[64];    /* +112 */
 } __packed mezzano_header_t;
+
+enum architecture {
+    arch_x86_64 = 1,
+    arch_arm64 = 2,
+};
 
 enum page_type {
     page_type_other = 0,
@@ -166,7 +172,7 @@ static inline int64_t unfixnum(uint64_t fix) {
     return ((int64_t)fix) >> 1;
 }
 
-extern void __noreturn mezzano_arch_enter(mmu_context_t *transition_pml4, mmu_context_t *pml4, uint64_t entry_fref, uint64_t initial_process, uint64_t boot_information_location);
+extern void __noreturn mezzano_arch_enter(mmu_context_t *transition_pml4, mmu_context_t *pml4, uint64_t entry_fref, uint64_t initial_process, uint64_t boot_information_location, uint64_t nil);
 
 extern void mezzano_platform_load(mezzano_boot_information_t *boot_info);
 extern void mezzano_generate_memory_map(mmu_context_t *mmu, mezzano_boot_information_t *boot_info);
