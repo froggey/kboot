@@ -326,10 +326,18 @@ static void *read_cached_block(mezzano_loader_t *loader, uint64_t block_id) {
                    0, // flags
                    &phys_addr);
 
-    status_t st = device_read(loader->disk,
-                  e->data,
-                  0x1000,
-                  block_id * 0x1000);
+    status_t st;
+    if(loader->disk) {
+        st = device_read(loader->disk,
+                         e->data,
+                         0x1000,
+                         block_id * 0x1000);
+    } else {
+        st = fs_read(loader->fs_handle,
+                     e->data,
+                     0x1000,
+                     block_id * 0x1000);
+    }
     if(st) {
         boot_error("Could not read block %" PRIu64 ": %pS", block_id, st);
     }
@@ -382,10 +390,18 @@ static void load_page(mezzano_loader_t *loader, mmu_context_t *mmu, uint64_t vir
     if(info & BLOCK_MAP_ZERO_FILL) {
         memset(bootloader_virt, 0, PAGE_SIZE);
     } else {
-        status_t st = device_read(loader->disk,
-                      bootloader_virt,
-                      0x1000,
-                      (info >> BLOCK_MAP_ID_SHIFT) * 0x1000);
+        status_t st;
+        if(loader->disk) {
+            st = device_read(loader->disk,
+                             bootloader_virt,
+                             0x1000,
+                             (info >> BLOCK_MAP_ID_SHIFT) * 0x1000);
+        } else {
+            st = fs_read(loader->fs_handle,
+                         bootloader_virt,
+                         0x1000,
+                         (info >> BLOCK_MAP_ID_SHIFT) * 0x1000);
+        }
         if(st) {
             boot_error("Could not read block %" PRIu64 " for virtual address %" PRIx64 ": %pS", info, virtual, st);
         }
@@ -556,6 +572,7 @@ static bool config_cmd_mezzano(value_list_t *args) {
     static_assert(offsetof(mezzano_memory_map_entry_t, start) == 0);
     static_assert(offsetof(mezzano_memory_map_entry_t, end) == 8);
 
+    status_t st;
     mezzano_loader_t *data;
 
     if(args->count != 1 ||
@@ -565,20 +582,35 @@ static bool config_cmd_mezzano(value_list_t *args) {
     }
 
     device_t *device = device_lookup(args->values[0].string);
+    fs_handle_t *fs_handle = NULL;
 
     /* Verify the device exists and is compatible (disks only, currently). */
-    if(!device || device->type != DEVICE_TYPE_DISK) {
-        config_error("mezzano: Invalid or unsupported device.\n");
-        return false;
+    if(device) {
+        if(device->type != DEVICE_TYPE_DISK) {
+            config_error("mezzano: Invalid or unsupported device.\n");
+            return false;
+        }
+    } else {
+        st = fs_open(args->values[0].string, NULL, FILE_TYPE_REGULAR, 0, &fs_handle);
+        if(st) {
+            config_error("mezzano: Unable to locate file or device %s: %pS\n",
+                         args->values[0].string, st);
+            return false;
+        }
     }
 
     data = malloc(sizeof *data);
     data->block_cache = NULL;
     data->device_name = strdup(args->values[0].string);
     data->disk = device;
+    data->fs_handle = fs_handle;
 
     /* Read in the header. */
-    status_t st = device_read(data->disk, &data->header, sizeof(mezzano_header_t), 0);
+    if(data->disk) {
+        st = device_read(data->disk, &data->header, sizeof(mezzano_header_t), 0);
+    } else {
+        st = fs_read(data->fs_handle, &data->header, sizeof(mezzano_header_t), 0);
+    }
     if(st) {
         config_error("mezzano: IO error, unable to read header: %pS\n", st);
         goto fail;
@@ -626,6 +658,9 @@ static bool config_cmd_mezzano(value_list_t *args) {
 
     return true;
 fail:
+    if(data->fs_handle) {
+        fs_close(data->fs_handle);
+    }
     free(data->device_name);
     free(data);
     return false;
