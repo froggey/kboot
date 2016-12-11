@@ -24,6 +24,7 @@
 
 #include <compiler.h>
 #include <device.h>
+#include <fs.h>
 #include <mmu.h>
 #include <types.h>
 
@@ -151,6 +152,7 @@ typedef struct block_cache_entry {
 /** Structure containing Mezzano image loader state. */
 typedef struct mezzano_loader {
     device_t *disk;            /**< Image device. */
+    fs_handle_t *fs_handle;    /**< Image file. */
     char *device_name;        /**< Image device name. */
 
     mezzano_header_t header;
