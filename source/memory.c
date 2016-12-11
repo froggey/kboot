@@ -497,10 +497,6 @@ void *memory_alloc(
             /* Insert a new range over the top of the allocation. */
             memory_map_insert(&memory_ranges, start, size, type);
 
-            dprintf(
-                "memory: allocated 0x%" PRIxPHYS "-0x%" PRIxPHYS " (align: 0x%" PRIxPHYS ", type: %u)\n",
-                start, start + size, align, type);
-
             if (_phys)
                 *_phys = start;
 
