@@ -525,6 +525,7 @@ static __noreturn void mezzano_loader_load(void *_loader) {
     dump_buddy_allocator(mmu, boot_info, loader->header.nil);
 
     dprintf("mezzano: Starting system...\n");
+    mezzano_platform_finalize(boot_info);
     mezzano_arch_enter(transition,
                        mmu,
                        loader->header.entry_fref,

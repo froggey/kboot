@@ -135,6 +135,7 @@ typedef struct mezzano_boot_information {
     // This is sorted in address order, with no overlaps.
     uint64_t n_memory_map_entries;                                 // +824 unsigned-byte 64.
     mezzano_memory_map_entry_t memory_map[mezzano_max_memory_map_size];
+    uint64_t efi_system_table;                                     // +1344
 } __packed mezzano_boot_information_t;
 
 #define BOOT_OPTION_FORCE_READ_ONLY 1
@@ -180,6 +181,7 @@ static inline int64_t unfixnum(uint64_t fix) {
 extern void __noreturn mezzano_arch_enter(mmu_context_t *transition_pml4, mmu_context_t *pml4, uint64_t entry_fref, uint64_t initial_process, uint64_t boot_information_location, uint64_t nil);
 
 extern void mezzano_platform_load(mezzano_boot_information_t *boot_info);
+extern void mezzano_platform_finalize(mezzano_boot_information_t *boot_info);
 extern void mezzano_generate_memory_map(mmu_context_t *mmu, mezzano_boot_information_t *boot_info);
 extern void mezzano_set_video_mode(mezzano_boot_information_t *boot_info);
 

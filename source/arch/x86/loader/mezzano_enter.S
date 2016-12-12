@@ -32,12 +32,39 @@
 .section .text, "ax", @progbits
 
 /** Enter a Mezzano image.
- * @param transition_pml4    Transition PML4.
- * @param pml4            Final PML4.
- * @param entry_fref        Value of the entry fref.
- * @param initial_process    Value of the initial process.
- * @param boot_information_location (fixnum) */
+ * @param transition_pml4    Transition PML4. (rdi or esp+4)
+ * @param pml4               Final PML4. (rsi or esp+12)
+ * @param entry_fref         Value of the entry fref. (rdx or esp+20)
+ * @param initial_process    Value of the initial process. (rcx or esp+28)
+ * @param boot_information_location (fixnum) (r8 or esp+36) */
 FUNCTION_START(mezzano_arch_enter_real)
+#ifdef __LP64__
+.code64
+    /* Enable PAE, PGE, and SSE. */
+    movq    %cr4, %rax
+    orq     $X86_CR4_PAE|X86_CR4_PGE|X86_CR4_OSFXSR|X86_CR4_OSXMMEXCPT, %rax
+    movq    %rax, %cr4
+
+    /* Point CR3 to the transition PML4. */
+    movq    %rdi, %cr3
+
+    /* Configure CR0. */
+    movq    $X86_CR0_PE|X86_CR0_MP|X86_CR0_ET|X86_CR0_NE|X86_CR0_WP|X86_CR0_PG, %rax
+    movq    %rax, %cr0
+
+    /* Set data segments. */
+    xorl    %eax, %eax
+    mov    %ax, %ds
+    mov    %ax, %es
+    mov    %ax, %fs
+    mov    %ax, %gs
+    mov    %ax, %ss
+
+    /* Move arguments into appropriate registers. */
+    movq    %rdx, %r13   /* entry fref */
+    movq    %rcx, %r12   /* initial process */
+
+#else /* __LP64__ */
 .code32
     /* Enable PAE, PGE, and SSE. */
     movl    %cr4, %eax
@@ -55,8 +82,8 @@ FUNCTION_START(mezzano_arch_enter_real)
     wrmsr
 
     /* Configure CR0. This will also put us in compatibility mode. */
-    movl    $X86_CR0_PE|X86_CR0_MP|X86_CR0_ET|X86_CR0_NE|X86_CR0_WP|X86_CR0_PG, %ecx
-    movl    %ecx, %cr0
+    movl    $X86_CR0_PE|X86_CR0_MP|X86_CR0_ET|X86_CR0_NE|X86_CR0_WP|X86_CR0_PG, %eax
+    movl    %eax, %cr0
 
     /* Jump into the 64-bit code segment. */
     ljmp    $SEGMENT_CS64, $1f
@@ -72,9 +99,11 @@ FUNCTION_START(mezzano_arch_enter_real)
     mov    %ax, %ss
 
     /* Fetch the arguments from the stack. */
+    movq    12(%esp), %rsi   /* real pml4 */
     movq    20(%esp), %r13   /* entry fref */
     movq    28(%esp), %r12   /* initial process */
     movq    36(%esp), %r8    /* boot info location */
+#endif
 
     /* Move to the pmap. */
     movq    $0xFFFF800000000000, %rax
@@ -84,8 +113,7 @@ FUNCTION_START(mezzano_arch_enter_real)
 1:
 
     /* Switch to the real kernel page directory. */
-    movq    12(%esp), %rax
-    movq    %rax, %cr3
+    movq    %rsi, %cr3
 
     /* Load the initial process into GS. */
     movq    %r12, %rax

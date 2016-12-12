@@ -24,8 +24,8 @@
 #include <lib/string.h>
 #include <lib/utility.h>
 
-#include <bios/bios.h>
-#include <bios/memory.h>
+#include <efi/efi.h>
+#include <efi/services.h>
 
 #include <assert.h>
 #include <device.h>
@@ -37,18 +37,17 @@
 #include <video.h>
 
 void mezzano_generate_memory_map(mmu_context_t *mmu, mezzano_boot_information_t *boot_info) {
-    // Iterate the E820 memory map to generate the physical mapping region.
-    // Only memory mentioned by the E820 map is mapped here. Device memory, etc is
-    // left for the OS to detect and map.
-    // TODO, eventually the system will need to know about ACPI reclaim/NVS areas.
+    efi_memory_descriptor_t *memory_map __cleanup_free = NULL;
+    efi_uintn_t num_entries, map_key;
+    efi_status_t ret;
 
-    void *buf __cleanup_free;
-    size_t num_entries, entry_size;
+    ret = efi_get_memory_map(&memory_map, &num_entries, &map_key);
+    if (ret != EFI_SUCCESS) {
+        internal_error("Failed to get memory map (0x%zx)", ret);
+    }
 
-    bios_memory_get_mmap(&buf, &num_entries, &entry_size);
-    for(size_t i = 0; i < num_entries; i++) {
-        e820_entry_t *entry = buf + (i * entry_size);
-        mezzano_add_physical_memory_range(mmu, boot_info, entry->start, entry->start + entry->length);
+    for(efi_uintn_t i = 0; i < num_entries; i += 1) {
+        mezzano_add_physical_memory_range(mmu, boot_info, memory_map[i].physical_start, memory_map[i].physical_start + memory_map[i].num_pages * EFI_PAGE_SIZE);
     }
 }
 
@@ -84,8 +83,7 @@ static int determine_vbe_mode_layout(video_mode_t *mode) {
     }
 }
 
-void mezzano_set_video_mode(mezzano_boot_information_t *boot_info)
-{
+void mezzano_set_video_mode(mezzano_boot_information_t *boot_info) {
     video_mode_t *mode;
     int layout;
 
@@ -96,7 +94,11 @@ void mezzano_set_video_mode(mezzano_boot_information_t *boot_info)
 
     layout = determine_vbe_mode_layout(mode);
     if(!layout) {
-        boot_error("Unable to find supported video mode.");
+        boot_error("Selected video mode is not supported. Type %i, bpp %i r%i-%i g%i-%i b%i-%i",
+                   mode->type, mode->format.bpp,
+                   mode->format.red_size, mode->format.red_pos,
+                   mode->format.green_size, mode->format.green_pos,
+                   mode->format.blue_size, mode->format.blue_pos);
     }
 
     dprintf("mezzano: Using %ix%i video mode, layout %i, pitch %i, fb at %08x\n",
@@ -108,60 +110,16 @@ void mezzano_set_video_mode(mezzano_boot_information_t *boot_info)
     boot_info->video.framebuffer_layout = fixnum(layout);
 }
 
-static bool acpi_checksum_range(phys_ptr_t start, unsigned int size) {
-    uint8_t sum = 0;
-    uint8_t *data = (uint8_t *)(ptr_t)start; // x86 uses a 1:1 p/v mapping.
-
-    for(unsigned int i = 0; i < size; i++) {
-        sum += data[i];
-    }
-
-    return sum == 0;
-}
-
-static uint64_t acpi_detect_range(phys_ptr_t start, phys_ptr_t end) {
-    for(phys_ptr_t i = start; i < end; i += 16) {
-        if(memcmp("RSD PTR ", (char *)(ptr_t)i, 8) == 0 && acpi_checksum_range(i, 20)) {
-            return i;
-        }
-    }
-
-    return 0;
-}
-
-// Return the physical address of the ACPI RSDP, or 0 if none was found.
-static uint64_t acpi_detect(void) {
-    uint64_t rsdp;
-
-    /* OSPM finds the Root System Description Pointer (RSDP) structure by
-     * searching physical memory ranges on 16-byte boundaries for a valid
-     * Root System Description Pointer structure signature and checksum match
-     * as follows:
-     *   The first 1 KB of the Extended BIOS Data Area (EBDA).
-     *   The BIOS read-only memory space between 0E0000h and 0FFFFFh. */
-
-    /* Search the EBDA */
-    phys_ptr_t ebda_start = ((phys_ptr_t)*(uint16_t *)0x40E) << 4;
-    rsdp = acpi_detect_range(ebda_start, ebda_start + 1024);
-    if(rsdp) {
-        dprintf("Detect ACPI RSDP at %016" PRIx64 " via the EBDA.\n", rsdp);
-        return rsdp;
-    }
-
-    /* Search the BIOS ROM */
-    rsdp = acpi_detect_range(0xE0000, 0x100000);
-    if(rsdp) {
-        dprintf("Detect ACPI RSDP at %016" PRIx64 " via the BIOS ROM.\n", rsdp);
-        return rsdp;
-    }
-
-    dprintf("Failed to detect ACPI RSDP.\n");
-    return 0;
-}
-
 void mezzano_platform_load(mezzano_boot_information_t *boot_info) {
-    boot_info->acpi_rsdp = acpi_detect();
 }
 
 void mezzano_platform_finalize(mezzano_boot_information_t *boot_info) {
+    void *memory_map __cleanup_free;
+    efi_uintn_t num_entries, desc_size;
+    efi_uint32_t desc_version;
+
+    /* Exit boot services mode and get the final memory map. */
+    efi_exit_boot_services(&memory_map, &num_entries, &desc_size, &desc_version);
+
+    boot_info->efi_system_table = virt_to_phys((ptr_t)efi_system_table);
 }
