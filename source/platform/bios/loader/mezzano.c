@@ -68,6 +68,17 @@ static int determine_vbe_mode_layout(video_mode_t *mode) {
         } else {
             return 0;
         }
+    case 24:
+        if(mode->format.red_size == 8 &&
+           mode->format.red_pos == 16 &&
+           mode->format.green_size == 8 &&
+           mode->format.green_pos == 8 &&
+           mode->format.blue_size == 8 &&
+           mode->format.blue_pos == 0) {
+            return FRAMEBUFFER_LAYOUT_X0_R8_G8_B8;
+        } else {
+            return 0;
+        }
     default:
         return 0;
     }

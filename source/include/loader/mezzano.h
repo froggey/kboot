@@ -102,7 +102,7 @@ typedef struct mezzano_video_information {
 //#define FRAMEBUFFER_LAYOUT_R8_G8_B8_X8 2  // 32-bit RGBX
 //#define FRAMEBUFFER_LAYOUT_X8_B8_G8_R8 3  // 32-bit XBGR
 //#define FRAMEBUFFER_LAYOUT_B8_G8_R8_X8 4  // 32-bit BGRX
-//#define FRAMEBUFFER_LAYOUT_X0_R8_G8_B8 5  // 24-bit RGB
+#define FRAMEBUFFER_LAYOUT_X0_R8_G8_B8 5  // 24-bit RGB
 //#define FRAMEBUFFER_LAYOUT_X0_B8_G8_R8 6  // 24-bit BGR
 //#define FRAMEBUFFER_LAYOUT_X0_R5_G6_B5 7  // 16-bit 565 RGB
 //#define FRAMEBUFFER_LAYOUT_X0_B5_G6_R5 8  // 16-bit 565 BGR
