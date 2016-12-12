@@ -451,6 +451,10 @@ static __noreturn void mezzano_loader_load(void *_loader) {
     mezzano_boot_information_t *boot_info = boot_info_page_virt;
     memset(boot_info, 0, PAGE_SIZE);
 
+    if(loader->force_ro) {
+        boot_info->boot_options |= fixnum(BOOT_OPTION_FORCE_READ_ONLY);
+    }
+
     mezzano_generate_memory_map(mmu, boot_info);
     mezzano_finalize_memory_map(mmu, boot_info);
 
@@ -561,6 +565,7 @@ static bool config_cmd_mezzano(value_list_t *args) {
     static_assert(offsetof(mezzano_boot_information_t, buddy_bin_64) == 336);
     static_assert(offsetof(mezzano_boot_information_t, video) == 768);
     static_assert(offsetof(mezzano_boot_information_t, acpi_rsdp) == 808);
+    static_assert(offsetof(mezzano_boot_information_t, boot_options) == 816);
     static_assert(offsetof(mezzano_boot_information_t, n_memory_map_entries) == 824);
     static_assert(offsetof(mezzano_boot_information_t, memory_map) == 832);
     static_assert(offsetof(mezzano_page_info_t, flags) == 0);
@@ -574,11 +579,22 @@ static bool config_cmd_mezzano(value_list_t *args) {
 
     status_t st;
     mezzano_loader_t *data;
+    bool force_ro = false;
 
-    if(args->count != 1 ||
-       args->values[0].type != VALUE_TYPE_STRING) {
+    if((args->count != 1 && args->count != 2) ||
+       args->values[0].type != VALUE_TYPE_STRING ||
+       (args->count == 2 && args->values[1].type != VALUE_TYPE_STRING)) {
         config_error("config: mezzano: invalid arguments\n");
         return false;
+    }
+
+    if(args->count >= 2) {
+        if(strcmp(args->values[1].string, "ro") == 0) {
+            force_ro = true;
+        } else {
+            config_error("config: mezzano: Unsupported option \"%s\"", args->values[1].string);
+            return false;
+        }
     }
 
     device_t *device = device_lookup(args->values[0].string);
@@ -604,6 +620,7 @@ static bool config_cmd_mezzano(value_list_t *args) {
     data->device_name = strdup(args->values[0].string);
     data->disk = device;
     data->fs_handle = fs_handle;
+    data->force_ro = force_ro;
 
     /* Read in the header. */
     if(data->disk) {
