@@ -121,21 +121,23 @@ typedef struct mezzano_video_information {
 #define mezzano_max_memory_map_size 32
 
 typedef struct mezzano_boot_information {
-    uint8_t uuid[16];                                          // +0 octets.
+    uint8_t uuid[16];                                              // +0 octets.
     // Buddy allocator for memory below 4GB.
     mezzano_buddy_bin_t buddy_bin_32[mezzano_n_buddy_bins_32_bit]; // +16
     // Buddy allocator for remaining memory.
     mezzano_buddy_bin_t buddy_bin_64[mezzano_n_buddy_bins_64_bit]; // +336
     // Video information.
-    mezzano_video_information_t video;                       // +768
-    uint64_t acpi_rsdp;                                        // +808
-    uint8_t _pad[8];                                           // +816
+    mezzano_video_information_t video;                             // +768
+    uint64_t acpi_rsdp;                                            // +808
+    uint64_t boot_options;                                         // +816
     // The memory map specifies where RAM exists, not what it can be used for.
     // If it's in the memory map, then it has an info struct mapped.
     // This is sorted in address order, with no overlaps.
-    uint64_t n_memory_map_entries;                             // +824 unsigned-byte 64.
+    uint64_t n_memory_map_entries;                                 // +824 unsigned-byte 64.
     mezzano_memory_map_entry_t memory_map[mezzano_max_memory_map_size];
 } __packed mezzano_boot_information_t;
+
+#define BOOT_OPTION_FORCE_READ_ONLY 1
 
 #define BLOCK_MAP_PRESENT 1
 #define BLOCK_MAP_WRITABLE 2
@@ -154,6 +156,7 @@ typedef struct mezzano_loader {
     device_t *disk;            /**< Image device. */
     fs_handle_t *fs_handle;    /**< Image file. */
     char *device_name;        /**< Image device name. */
+    bool force_ro;
 
     mezzano_header_t header;
 
