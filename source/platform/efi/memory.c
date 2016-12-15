@@ -189,9 +189,9 @@ void *memory_alloc(
             list_init(&range->header);
             list_append(&efi_memory_ranges, &range->header);
 
-            dprintf(
+            /*dprintf(
                 "memory: allocated 0x%" PRIxPHYS "-0x%" PRIxPHYS " (align: 0x%" PRIxPHYS ", type: %u)\n",
-                start, start + size, align, type);
+                start, start + size, align, type);*/
 
             if (_phys)
                 *_phys = start;

@@ -39,8 +39,15 @@ typedef struct heap_chunk {
     };
 } heap_chunk_t;
 
-/** Size of the heap (128KB). */
-#define HEAP_SIZE       131072
+/** Size of the heap. */
+#ifdef CONFIG_PLATFORM_EFI
+/* Mezzano's EFI loader needs a larger heap.
+ * EFI's memory_alloc mallocs metadata per-allocation and the mezzano loader
+ * performs many individual page allocations */
+#  define HEAP_SIZE       (2*1024*1024)
+#else
+#  define HEAP_SIZE       (128*1024)
+#endif
 
 /** Statically allocated heap. */
 static uint8_t heap[HEAP_SIZE] __aligned(PAGE_SIZE);
