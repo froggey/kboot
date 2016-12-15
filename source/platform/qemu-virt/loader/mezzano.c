@@ -54,7 +54,7 @@ void mezzano_set_video_mode(mezzano_boot_information_t *boot_info)
 }
 
 void mezzano_platform_load(mezzano_boot_information_t *boot_info) {
-    boot_info->acpi_rsdp = 0;
+    boot_info->fdt_address = 0x40000000;
 }
 
 void mezzano_platform_finalize(mezzano_boot_information_t *boot_info) {
