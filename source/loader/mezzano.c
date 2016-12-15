@@ -569,6 +569,8 @@ static bool config_cmd_mezzano(value_list_t *args) {
     static_assert(offsetof(mezzano_boot_information_t, boot_options) == 816);
     static_assert(offsetof(mezzano_boot_information_t, n_memory_map_entries) == 824);
     static_assert(offsetof(mezzano_boot_information_t, memory_map) == 832);
+    static_assert(offsetof(mezzano_boot_information_t, efi_system_table) == 1344);
+    static_assert(offsetof(mezzano_boot_information_t, fdt_address) == 1352);
     static_assert(offsetof(mezzano_page_info_t, flags) == 0);
     static_assert(offsetof(mezzano_page_info_t, extra) == 8);
     static_assert(offsetof(mezzano_page_info_t, next) == 16);

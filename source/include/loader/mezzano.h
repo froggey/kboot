@@ -136,6 +136,7 @@ typedef struct mezzano_boot_information {
     uint64_t n_memory_map_entries;                                 // +824 unsigned-byte 64.
     mezzano_memory_map_entry_t memory_map[mezzano_max_memory_map_size];
     uint64_t efi_system_table;                                     // +1344
+    uint64_t fdt_address;                                          // +1352
 } __packed mezzano_boot_information_t;
 
 #define BOOT_OPTION_FORCE_READ_ONLY 1
