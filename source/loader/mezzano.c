@@ -41,7 +41,7 @@
 
 static const char mezzano_magic[] = "\x00MezzanineImage\x00";
 static const uint16_t mezzano_protocol_major = 0;
-static const uint16_t mezzano_protocol_minor = 22;
+static const uint16_t mezzano_protocol_minor = 23;
 
 static bool in_range(uint64_t start, uint64_t end, uint64_t value) {
     return start <= value && value <= end;
@@ -299,76 +299,63 @@ static void buddy_free_page(mmu_context_t *mmu, mezzano_boot_information_t *boot
     buddies[k].count += fixnum(1);
 }
 
-static void *read_cached_block(mezzano_loader_t *loader, uint64_t block_id) {
-    block_cache_entry_t **prev = &loader->block_cache;
-    for(block_cache_entry_t *e = loader->block_cache; e; e = e->next) {
-        if(e->block == block_id) {
-            // Bring recently used blocks to the front of the list.
-            *prev = e->next;
-            e->next = loader->block_cache;
-            loader->block_cache = e;
-            return e->data;
-        }
-        prev = &e->next;
-    }
-    // Not present in cache. Read from disk.
-    block_cache_entry_t *e = malloc(sizeof(block_cache_entry_t));
-    e->next = loader->block_cache;
-    loader->block_cache = e;
-    e->block = block_id;
-
-    // Heap is fixed-size, use pages directly.
+static uint64_t read_block_map_level(mezzano_loader_t *loader, uint64_t level_disk_block, int level) {
     phys_ptr_t phys_addr;
-    e->data = memory_alloc(0x1000, // size
-                   0x1000, // alignment
-                   0, 0, // min/max address
-                   MEMORY_TYPE_INTERNAL, // type
-                   0, // flags
-                   &phys_addr);
+    void *data = memory_alloc(0x1000, // size
+                              0x1000, // alignment
+                              0x100000, 0, // min/max address
+                              MEMORY_TYPE_ALLOCATED, // type
+                              0, // flags
+                              &phys_addr);
+
+    void *disk_block;
+    if(level != 1) {
+        disk_block = malloc(0x1000);
+    } else {
+        disk_block = data;
+    }
 
     status_t st;
     if(loader->disk) {
         st = device_read(loader->disk,
-                         e->data,
+                         disk_block,
                          0x1000,
-                         block_id * 0x1000);
+                         level_disk_block * 0x1000);
     } else {
         st = fs_read(loader->fs_handle,
-                     e->data,
+                     disk_block,
                      0x1000,
-                     block_id * 0x1000);
+                     level_disk_block * 0x1000);
     }
     if(st) {
-        boot_error("Could not read block %" PRIu64 ": %pS", block_id, st);
+        boot_error("Could not read block %" PRIu64 ": %pS", level_disk_block, st);
     }
 
-    return e->data;
+    if(level == 1) {
+        return phys_addr + mezzano_physical_map_address;
+    }
+
+
+    for(int i = 0; i < 512; i += 1) {
+        uint64_t entry = ((uint64_t *)disk_block)[i];
+        uint64_t id = entry >> BLOCK_MAP_ID_SHIFT;
+        if(id == 0) {
+            ((uint64_t *)data)[i] = 0;
+        } else {
+            ((uint64_t *)data)[i] = read_block_map_level(loader, id, level - 1);
+        }
+    }
+
+    free(disk_block);
+
+    return phys_addr + mezzano_physical_map_address;
 }
 
-static uint64_t read_info_for_page(mezzano_loader_t *loader, uint64_t virtual) {
-    // Indices into each level of the block map.
-    uint64_t bml4i = (virtual >> 39) & 0x1FF;
-    uint64_t bml3i = (virtual >> 30) & 0x1FF;
-    uint64_t bml2i = (virtual >> 21) & 0x1FF;
-    uint64_t bml1i = (virtual >> 12) & 0x1FF;
-    uint64_t *bml4 = read_cached_block(loader, loader->header.bml4);
-    if((bml4[bml4i] & BLOCK_MAP_PRESENT) == 0) {
-        return 0;
-    }
-    uint64_t *bml3 = read_cached_block(loader, bml4[bml4i] >> BLOCK_MAP_ID_SHIFT);
-    if((bml3[bml3i] & BLOCK_MAP_PRESENT) == 0) {
-        return 0;
-    }
-    uint64_t *bml2 = read_cached_block(loader, bml3[bml3i] >> BLOCK_MAP_ID_SHIFT);
-    if((bml2[bml2i] & BLOCK_MAP_PRESENT) == 0) {
-        return 0;
-    }
-    uint64_t *bml1 = read_cached_block(loader, bml2[bml2i] >> BLOCK_MAP_ID_SHIFT);
-    return bml1[bml1i];
+static void mezzano_read_block_map(mezzano_loader_t *loader, mezzano_boot_information_t *boot_info) {
+    boot_info->block_map_address = read_block_map_level(loader, loader->header.bml4, 4);
 }
 
-static void load_page(mezzano_loader_t *loader, mmu_context_t *mmu, uint64_t virtual) {
-    uint64_t info = read_info_for_page(loader, virtual);
+static void load_page(mezzano_loader_t *loader, mmu_context_t *mmu, uint64_t info, uint64_t virtual) {
     if((info & BLOCK_MAP_PRESENT) == 0) {
         return;
     }
@@ -376,11 +363,11 @@ static void load_page(mezzano_loader_t *loader, mmu_context_t *mmu, uint64_t vir
     // Alloc phys.
     phys_ptr_t phys_addr;
     void *bootloader_virt = memory_alloc(PAGE_SIZE, // size
-                         0x1000, // alignment
-                         0x100000, 0, // min/max address
-                         MEMORY_TYPE_ALLOCATED, // type
-                         0, // flags
-                         &phys_addr);
+                                         0x1000, // alignment
+                                         0x100000, 0, // min/max address
+                                         MEMORY_TYPE_ALLOCATED, // type
+                                         0, // flags
+                                         &phys_addr);
     // Map...
     mmu_map(mmu, virtual, phys_addr, PAGE_SIZE);
     // Write block number to page info struct.
@@ -406,6 +393,43 @@ static void load_page(mezzano_loader_t *loader, mmu_context_t *mmu, uint64_t vir
             boot_error("Could not read block %" PRIu64 " for virtual address %" PRIx64 ": %pS", info, virtual, st);
         }
     }
+}
+
+static void mezzano_read_wired_pages(mezzano_loader_t *loader, mmu_context_t *mmu, mezzano_boot_information_t *boot_info) {
+    // Traverse the block map looking for wired pages.
+    dprintf("Loading wired pages...\n");
+    uint64_t *bml4 = (uint64_t *)(ptr_t)(boot_info->block_map_address - mezzano_physical_map_address);
+    for(int i = 0; i < 512; i += 1) {
+        dprintf("%i ", i);
+        if(!bml4[i]) {
+            continue;
+        }
+        uint64_t *bml3 = (uint64_t *)(ptr_t)(bml4[i] - mezzano_physical_map_address);
+        for(int j = 0; j < 512; j += 1) {
+            if(!bml3[j]) {
+                continue;
+            }
+            uint64_t *bml2 = (uint64_t *)(ptr_t)(bml3[j] - mezzano_physical_map_address);
+            for(int k = 0; k < 512; k += 1) {
+                if(!bml2[k]) {
+                    continue;
+                }
+                uint64_t *bml1 = (uint64_t *)(ptr_t)(bml2[k] - mezzano_physical_map_address);
+                for(int l = 0; l < 512; l += 1) {
+                    if((bml1[l] & BLOCK_MAP_WIRED) == 0) {
+                        continue;
+                    }
+                    uint64_t address =
+                        ((uint64_t)i << 39ull) |
+                        ((uint64_t)j << 30ull) |
+                        ((uint64_t)k << 21ull) |
+                        ((uint64_t)l << 12ull);
+                    load_page(loader, mmu, bml1[l], address);
+                }
+            }
+        }
+    }
+    dprintf("complete\n");
 }
 
 static void dump_one_buddy_allocator(mmu_context_t *mmu, mezzano_boot_information_t *boot_info, uint64_t nil, mezzano_buddy_bin_t *buddies, int max) {
@@ -458,22 +482,8 @@ static __noreturn void mezzano_loader_load(void *_loader) {
     mezzano_generate_memory_map(mmu, boot_info);
     mezzano_finalize_memory_map(mmu, boot_info);
 
-    for(uint32_t i = 0; i < loader->header.n_extents; ++i) {
-        // Each extent must be 4k (page) aligned in memory.
-        dprintf("mezzano: extent % 2" PRIu32 " %016" PRIx64 " %08" PRIx64 " %04" PRIx64 "\n",
-            i, loader->header.extents[i].virtual_base,
-            loader->header.extents[i].size, loader->header.extents[i].flags);
-        if(loader->header.extents[i].virtual_base % PAGE_SIZE ||
-           loader->header.extents[i].size % PAGE_SIZE) {
-            boot_error("Extent %" PRIu32 " is misaligned", i);
-        }
-
-        // Load each page in the region.
-        // TODO: Use 2M pages.
-        for(uint64_t offset = 0; offset < loader->header.extents[i].size; offset += PAGE_SIZE) {
-            load_page(loader, mmu, loader->header.extents[i].virtual_base + offset);
-        }
-    }
+    mezzano_read_block_map(loader, boot_info);
+    mezzano_read_wired_pages(loader, mmu, boot_info);
 
     mezzano_platform_load(boot_info);
 
@@ -619,7 +629,6 @@ static bool config_cmd_mezzano(value_list_t *args) {
     }
 
     data = malloc(sizeof *data);
-    data->block_cache = NULL;
     data->device_name = strdup(args->values[0].string);
     data->disk = device;
     data->fs_handle = fs_handle;

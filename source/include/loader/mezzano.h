@@ -28,21 +28,13 @@
 #include <mmu.h>
 #include <types.h>
 
-/** A virtual memory extent that should be loaded by the bootloader. */
-typedef struct mezzano_extent {
-    uint64_t virtual_base;
-    uint64_t size;
-    uint64_t flags;
-    uint64_t extra;
-} __packed mezzano_extent_t;
-
 /** On-disk image header. */
 typedef struct mezzano_header {
     uint8_t magic[16];               /* +0 */
     uint8_t uuid[16];                /* +16 */
     uint16_t protocol_major;         /* +32 */
     uint16_t protocol_minor;         /* +34 */
-    uint32_t n_extents;              /* +36 */
+    uint32_t _pad1;                  /* +36 */
     uint64_t entry_fref;             /* +40 */
     uint64_t initial_process;        /* +48 */
     uint64_t nil;                    /* +56 */
@@ -50,7 +42,6 @@ typedef struct mezzano_header {
     uint8_t _pad2[31];               /* +65 */
     uint64_t bml4;                   /* +96 */
     uint64_t freelist_head;          /* +104 */
-    mezzano_extent_t extents[64];    /* +112 */
 } __packed mezzano_header_t;
 
 enum architecture {
@@ -137,21 +128,17 @@ typedef struct mezzano_boot_information {
     mezzano_memory_map_entry_t memory_map[mezzano_max_memory_map_size];
     uint64_t efi_system_table;                                     // +1344
     uint64_t fdt_address;                                          // +1352
+    uint64_t block_map_address;                                    // +1360
 } __packed mezzano_boot_information_t;
 
 #define BOOT_OPTION_FORCE_READ_ONLY 1
 
-#define BLOCK_MAP_PRESENT 1
-#define BLOCK_MAP_WRITABLE 2
-#define BLOCK_MAP_ZERO_FILL 4
+#define BLOCK_MAP_PRESENT 0x01
+#define BLOCK_MAP_WRITABLE 0x02
+#define BLOCK_MAP_ZERO_FILL 0x04
+#define BLOCK_MAP_WIRED 0x10
 #define BLOCK_MAP_FLAG_MASK 0xFF
 #define BLOCK_MAP_ID_SHIFT 8
-
-typedef struct block_cache_entry {
-    uint64_t block;
-    void *data;
-    struct block_cache_entry *next;
-} block_cache_entry_t;
 
 /** Structure containing Mezzano image loader state. */
 typedef struct mezzano_loader {
@@ -161,8 +148,6 @@ typedef struct mezzano_loader {
     bool force_ro;
 
     mezzano_header_t header;
-
-    block_cache_entry_t *block_cache;
 } mezzano_loader_t;
 
 // FIXME: Duplicated in enter.S
