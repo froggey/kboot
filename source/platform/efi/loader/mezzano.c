@@ -87,10 +87,7 @@ void mezzano_set_video_mode(mezzano_boot_information_t *boot_info) {
     video_mode_t *mode;
     int layout;
 
-    mode = video_env_set(current_environ, "video_mode");
-    if(!mode) {
-        boot_error("Unable to find supported video mode.");
-    }
+    mode = current_video_mode;
 
     layout = determine_vbe_mode_layout(mode);
     if(!layout) {
