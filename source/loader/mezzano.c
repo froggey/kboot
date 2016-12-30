@@ -576,6 +576,59 @@ static loader_ops_t mezzano_loader_ops = {
 #endif
 };
 
+static bool mezzano_locate_image(const char *path, device_t **_device, fs_handle_t **_fs_handle) {
+    status_t st;
+
+    if(strncmp(path, "uuid:", 5) == 0) {
+        // Search all devices for an image with a matching UUID.
+        const char *path_uuid = path + 5;
+        list_foreach(&device_list, iter) {
+            char uuid[UUID_STR_LEN];
+            device_t *device = list_entry(iter, device_t, header);
+            mezzano_header_t header;
+            st = device_read(device, &header, sizeof(mezzano_header_t), 0);
+            if(st) {
+                config_error("mezzano: Unable read device %s when searching for %s: %pS\n",
+                             device->name, path, st);
+                continue;
+            }
+            if(memcmp(header.magic, mezzano_magic, 16) != 0) {
+                continue;
+            }
+            snprintf(uuid, sizeof uuid, "%pu", header.uuid);
+            if(strcasecmp(uuid, path_uuid) == 0) {
+                printf("mezzano: Detected UUID %pu on device %s.\n",
+                       header.uuid, device->name);
+                *_device = device;
+                *_fs_handle = NULL;
+                return true;
+            }
+        }
+    }
+
+    device_t *device = device_lookup(path);
+    fs_handle_t *fs_handle = NULL;
+
+    /* Verify the device exists and is compatible (disks only, currently). */
+    if(device) {
+        if(device->type != DEVICE_TYPE_DISK) {
+            config_error("mezzano: Invalid or unsupported device.\n");
+            return false;
+        }
+    } else {
+        st = fs_open(path, NULL, FILE_TYPE_REGULAR, 0, &fs_handle);
+        if(st) {
+            config_error("mezzano: Unable to locate file or device %s: %pS\n",
+                         path, st);
+            return false;
+        }
+    }
+
+    *_device = device;
+    *_fs_handle = fs_handle;
+    return true;
+}
+
 /** Load a Mezzano image.
  * @param args        Command arguments.
  * @return        Whether completed successfully. */
@@ -613,22 +666,10 @@ static bool config_cmd_mezzano(value_list_t *args) {
         return false;
     }
 
-    device_t *device = device_lookup(args->values[0].string);
+    device_t *device = NULL;
     fs_handle_t *fs_handle = NULL;
-
-    /* Verify the device exists and is compatible (disks only, currently). */
-    if(device) {
-        if(device->type != DEVICE_TYPE_DISK) {
-            config_error("mezzano: Invalid or unsupported device.\n");
-            return false;
-        }
-    } else {
-        st = fs_open(args->values[0].string, NULL, FILE_TYPE_REGULAR, 0, &fs_handle);
-        if(st) {
-            config_error("mezzano: Unable to locate file or device %s: %pS\n",
-                         args->values[0].string, st);
-            return false;
-        }
+    if(!mezzano_locate_image(args->values[0].string, &device, &fs_handle)) {
+        return false;
     }
 
     data = malloc(sizeof *data);
