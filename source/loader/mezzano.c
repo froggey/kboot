@@ -372,7 +372,11 @@ static void load_page(mezzano_loader_t *loader, mmu_context_t *mmu, uint64_t inf
     mmu_map(mmu, virtual, phys_addr, PAGE_SIZE);
     // Write block number to page info struct.
     set_page_info_extra(mmu, phys_addr, fixnum(info >> BLOCK_MAP_ID_SHIFT));
-    set_page_info_type(mmu, phys_addr, page_type_wired);
+    if(info & BLOCK_MAP_WIRED) {
+        set_page_info_type(mmu, phys_addr, page_type_wired);
+    } else {
+        set_page_info_type(mmu, phys_addr, page_type_active);
+    }
 
     if(info & BLOCK_MAP_ZERO_FILL) {
         memset(bootloader_virt, 0, PAGE_SIZE);
@@ -397,7 +401,7 @@ static void load_page(mezzano_loader_t *loader, mmu_context_t *mmu, uint64_t inf
 
 static void mezzano_read_wired_pages(mezzano_loader_t *loader, mmu_context_t *mmu, mezzano_boot_information_t *boot_info) {
     // Traverse the block map looking for wired pages.
-    dprintf("Loading wired pages...\n");
+    dprintf("Loading %s pages...\n", loader->freestanding ? "all" : "wired");
     uint64_t *bml4 = (uint64_t *)(ptr_t)(boot_info->block_map_address - mezzano_physical_map_address);
     for(int i = 0; i < 512; i += 1) {
         dprintf("%i ", i);
@@ -416,7 +420,8 @@ static void mezzano_read_wired_pages(mezzano_loader_t *loader, mmu_context_t *mm
                 }
                 uint64_t *bml1 = (uint64_t *)(ptr_t)(bml2[k] - mezzano_physical_map_address);
                 for(int l = 0; l < 512; l += 1) {
-                    if((bml1[l] & BLOCK_MAP_WIRED) == 0) {
+                    if(!loader->freestanding &&
+                       (bml1[l] & BLOCK_MAP_WIRED) == 0) {
                         continue;
                     }
                     uint64_t address =
@@ -477,6 +482,15 @@ static __noreturn void mezzano_loader_load(void *_loader) {
 
     if(loader->force_ro) {
         boot_info->boot_options |= fixnum(BOOT_OPTION_FORCE_READ_ONLY);
+    }
+    if(loader->freestanding) {
+        boot_info->boot_options |= fixnum(BOOT_OPTION_FREESTANDING);
+    }
+    if(loader->video_console) {
+        boot_info->boot_options |= fixnum(BOOT_OPTION_VIDEO_CONSOLE);
+    }
+    if(loader->no_detect) {
+        boot_info->boot_options |= fixnum(BOOT_OPTION_NO_DETECT);
     }
 
     mezzano_generate_memory_map(mmu, boot_info);
@@ -592,22 +606,11 @@ static bool config_cmd_mezzano(value_list_t *args) {
 
     status_t st;
     mezzano_loader_t *data;
-    bool force_ro = false;
 
-    if((args->count != 1 && args->count != 2) ||
-       args->values[0].type != VALUE_TYPE_STRING ||
-       (args->count == 2 && args->values[1].type != VALUE_TYPE_STRING)) {
+    if(args->count < 1 ||
+       args->values[0].type != VALUE_TYPE_STRING) {
         config_error("config: mezzano: invalid arguments\n");
         return false;
-    }
-
-    if(args->count >= 2) {
-        if(strcmp(args->values[1].string, "ro") == 0) {
-            force_ro = true;
-        } else {
-            config_error("config: mezzano: Unsupported option \"%s\"", args->values[1].string);
-            return false;
-        }
     }
 
     device_t *device = device_lookup(args->values[0].string);
@@ -632,7 +635,24 @@ static bool config_cmd_mezzano(value_list_t *args) {
     data->device_name = strdup(args->values[0].string);
     data->disk = device;
     data->fs_handle = fs_handle;
-    data->force_ro = force_ro;
+
+    for(unsigned int i = 1; i < args->count; i += 1) {
+        if(args->values[i].type != VALUE_TYPE_STRING) {
+            config_error("config: mezzano: Bad option");
+            goto fail;
+        } else if(strcmp(args->values[i].string, "read-only") == 0) {
+            data->force_ro = true;
+        } else if(strcmp(args->values[i].string, "freestanding") == 0) {
+            data->freestanding = true;
+        } else if(strcmp(args->values[i].string, "video-console") == 0) {
+            data->video_console = true;
+        } else if(strcmp(args->values[i].string, "no-detect") == 0) {
+            data->no_detect = true;
+        } else {
+            config_error("config: mezzano: Unsupported option \"%s\"", args->values[i].string);
+            goto fail;
+        }
+    }
 
     /* Read in the header. */
     if(data->disk) {
