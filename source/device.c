@@ -31,7 +31,7 @@
 #include <memory.h>
 
 /** List of all registered devices. */
-static LIST_DECLARE(device_list);
+LIST_DECLARE(device_list);
 
 /** Boot device. */
 device_t *boot_device;

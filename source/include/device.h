@@ -72,6 +72,7 @@ typedef struct device {
     struct fs_mount *mount;             /**< Filesystem on the device. */
 } device_t;
 
+extern list_t device_list;
 extern device_t *boot_device;
 extern char *boot_directory;
 
