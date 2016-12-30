@@ -588,8 +588,8 @@ static bool mezzano_locate_image(const char *path, device_t **_device, fs_handle
             mezzano_header_t header;
             st = device_read(device, &header, sizeof(mezzano_header_t), 0);
             if(st) {
-                config_error("mezzano: Unable read device %s when searching for %s: %pS\n",
-                             device->name, path, st);
+                dprintf("mezzano: Unable read device %s when searching for %s: %pS\n",
+                        device->name, path, st);
                 continue;
             }
             if(memcmp(header.magic, mezzano_magic, 16) != 0) {
