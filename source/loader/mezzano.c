@@ -78,7 +78,7 @@ static void mezzano_insert_into_memory_map(mezzano_boot_information_t *boot_info
     // Can't merge with an existing entry. Insert a new region.
     if(boot_info->n_memory_map_entries == mezzano_max_memory_map_size) {
         dprintf("Too many memory map entries. Ignoring %016" PRIx64 "-%016" PRIx64 "\n",
-            start, end);
+                start, end);
         return;
     }
     // Shuffle entries up.
@@ -113,7 +113,7 @@ void mezzano_add_physical_memory_range(mmu_context_t *mmu, mezzano_boot_informat
         return;
     }
 
-    dprintf("mezzano: Map physical memory region %016" PRIx64 "-%016" PRIx64 " %016" PRIx64 "-%016" PRIx64 "\n",
+    printf("mezzano: Map physical memory region %016" PRIx64 "-%016" PRIx64 " %016" PRIx64 "-%016" PRIx64 "\n",
             orig_start, orig_end, start, end);
 
     // Map the memory into the physical map region.
@@ -124,11 +124,11 @@ void mezzano_add_physical_memory_range(mmu_context_t *mmu, mezzano_boot_informat
 }
 
 static void mezzano_finalize_memory_map(mmu_context_t *mmu, mezzano_boot_information_t *boot_info) {
-    dprintf("mezzano: Final memory map:\n");
+    printf("mezzano: Final memory map:\n");
     for(uint64_t i = 0; i < boot_info->n_memory_map_entries; i += 1) {
-        dprintf("  %016" PRIx64 "-%016" PRIx64 "\n",
-            boot_info->memory_map[i].start,
-            boot_info->memory_map[i].end);
+        printf("  %016" PRIx64 "-%016" PRIx64 "\n",
+               boot_info->memory_map[i].start,
+               boot_info->memory_map[i].end);
     }
 
     // Allocate the information structs for all the pages in the memory map.
@@ -139,7 +139,7 @@ static void mezzano_finalize_memory_map(mmu_context_t *mmu, mezzano_boot_informa
         phys_ptr_t info_start = round_down((mezzano_physical_info_address + (start / PAGE_SIZE) * sizeof(mezzano_page_info_t)), PAGE_SIZE);
         phys_ptr_t info_end = round_up((mezzano_physical_info_address + (end / PAGE_SIZE) * sizeof(mezzano_page_info_t)), PAGE_SIZE);
         phys_ptr_t phys_info_addr;
-        dprintf("mezzano: info range %016" PRIx64 "-%016" PRIx64 "\n", info_start, info_end);
+        printf("mezzano: info range %016" PRIx64 "-%016" PRIx64 "\n", info_start, info_end);
         // FIXME/TODO: It's ok for the backing pages to be discontinuous.
         // Could use 2MB pages here as well.
         void *virt = memory_alloc(info_end - info_start, // size
@@ -401,10 +401,10 @@ static void load_page(mezzano_loader_t *loader, mmu_context_t *mmu, uint64_t inf
 
 static void mezzano_read_wired_pages(mezzano_loader_t *loader, mmu_context_t *mmu, mezzano_boot_information_t *boot_info) {
     // Traverse the block map looking for wired pages.
-    dprintf("Loading %s pages...\n", loader->freestanding ? "all" : "wired");
+    printf("Loading %s pages...\n", loader->freestanding ? "all" : "wired");
     uint64_t *bml4 = (uint64_t *)(ptr_t)(boot_info->block_map_address - mezzano_physical_map_address);
     for(int i = 0; i < 512; i += 1) {
-        dprintf("%i ", i);
+        printf("%i ", i);
         if(!bml4[i]) {
             continue;
         }
@@ -434,32 +434,32 @@ static void mezzano_read_wired_pages(mezzano_loader_t *loader, mmu_context_t *mm
             }
         }
     }
-    dprintf("complete\n");
+    printf("complete\n");
 }
 
 static void dump_one_buddy_allocator(mmu_context_t *mmu, mezzano_boot_information_t *boot_info, uint64_t nil, mezzano_buddy_bin_t *buddies, int max) {
     for(int k = 0; k < max; k += 1) {
-        dprintf("Order %i %" PRIu64 " %016" PRIx64 ":\n", (k + log2_4k_page), buddies[k].count, buddies[k].first_page);
+        printf("Order %i %" PRIu64 " %016" PRIx64 ":\n", (k + log2_4k_page), buddies[k].count, buddies[k].first_page);
         uint64_t current = buddies[k].first_page;
         while(true) {
             if(current == nil) {
                 break;
             }
             assert((current & 1) == 0);
-            dprintf("  %016" PRIx64 "-%016" PRIx64 " %016" PRIx64 " %016" PRIx64 "\n",
-                unfixnum(current) * PAGE_SIZE,
-                unfixnum(current) * PAGE_SIZE + ((phys_ptr_t)1 << (12+k)),
-                page_info_next(mmu, unfixnum(current) * PAGE_SIZE),
-                page_info_prev(mmu, unfixnum(current) * PAGE_SIZE));
+            printf("  %016" PRIx64 "-%016" PRIx64 " %016" PRIx64 " %016" PRIx64 "\n",
+                   unfixnum(current) * PAGE_SIZE,
+                   unfixnum(current) * PAGE_SIZE + ((phys_ptr_t)1 << (12+k)),
+                   page_info_next(mmu, unfixnum(current) * PAGE_SIZE),
+                   page_info_prev(mmu, unfixnum(current) * PAGE_SIZE));
             current = page_info_next(mmu, unfixnum(current) * PAGE_SIZE);
         }
     }
 }
 
 static void dump_buddy_allocator(mmu_context_t *mmu, mezzano_boot_information_t *boot_info, uint64_t nil) {
-    dprintf("32-bit buddy allocator:\n");
+    printf("32-bit buddy allocator:\n");
     dump_one_buddy_allocator(mmu, boot_info, nil, boot_info->buddy_bin_32, mezzano_n_buddy_bins_32_bit);
-    dprintf("64-bit buddy allocator:\n");
+    printf("64-bit buddy allocator:\n");
     dump_one_buddy_allocator(mmu, boot_info, nil, boot_info->buddy_bin_64, mezzano_n_buddy_bins_64_bit);
 }
 
@@ -548,7 +548,7 @@ static __noreturn void mezzano_loader_load(void *_loader) {
 
     dump_buddy_allocator(mmu, boot_info, loader->header.nil);
 
-    dprintf("mezzano: Starting system...\n");
+    printf("mezzano: Starting system...\n");
     mezzano_platform_finalize(boot_info);
     mezzano_arch_enter(transition,
                        mmu,
