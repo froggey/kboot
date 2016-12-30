@@ -131,7 +131,10 @@ typedef struct mezzano_boot_information {
     uint64_t block_map_address;                                    // +1360
 } __packed mezzano_boot_information_t;
 
-#define BOOT_OPTION_FORCE_READ_ONLY 1
+#define BOOT_OPTION_FORCE_READ_ONLY 0x01
+#define BOOT_OPTION_FREESTANDING    0x02
+#define BOOT_OPTION_VIDEO_CONSOLE   0x04
+#define BOOT_OPTION_NO_DETECT       0x08
 
 #define BLOCK_MAP_PRESENT 0x01
 #define BLOCK_MAP_WRITABLE 0x02
@@ -146,6 +149,9 @@ typedef struct mezzano_loader {
     fs_handle_t *fs_handle;    /**< Image file. */
     char *device_name;        /**< Image device name. */
     bool force_ro;
+    bool freestanding;
+    bool video_console;
+    bool no_detect;
 
     mezzano_header_t header;
 } mezzano_loader_t;
