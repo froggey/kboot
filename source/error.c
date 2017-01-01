@@ -89,7 +89,8 @@ void __noreturn internal_error(const char *fmt, ...) {
     va_end(args);
 
     error_printf("\n\n");
-    error_printf("Please report this error to http://kiwi.alex-smith.me.uk/\n");
+    error_printf("Please report this error to https://github.com/aejsmith/kboot\n");
+    error_printf("Version: %s\n", kboot_loader_version);
 
     backtrace(error_printf);
 
@@ -119,11 +120,10 @@ static void boot_error_render(ui_window_t *window) {
  * @param window        Window to write for. */
 static void boot_error_help(ui_window_t *window) {
     ui_print_action('\e', "Reboot");
+    ui_print_action(CONSOLE_KEY_F9, "Debug Log");
 
     if (shell_enabled)
-        ui_print_action(CONSOLE_KEY_F2, "Shell");
-
-    ui_print_action(CONSOLE_KEY_F10, "Debug Log");
+        ui_print_action(CONSOLE_KEY_F10, "Shell");
 }
 
 /** Handle input on the boot error window.
@@ -135,12 +135,12 @@ static input_result_t boot_error_input(ui_window_t *window, uint16_t key) {
     case '\e':
         target_reboot();
         return INPUT_HANDLED;
-    case CONSOLE_KEY_F2:
-        /* We start the shell in boot_error() upon return. */
-        return (shell_enabled) ? INPUT_CLOSE : INPUT_HANDLED;
-    case CONSOLE_KEY_F10:
+    case CONSOLE_KEY_F9:
         debug_log_display();
         return INPUT_RENDER_WINDOW;
+    case CONSOLE_KEY_F10:
+        /* We start the shell in boot_error() upon return. */
+        return (shell_enabled) ? INPUT_CLOSE : INPUT_HANDLED;
     default:
         return INPUT_HANDLED;
     }
@@ -170,14 +170,12 @@ void __noreturn boot_error(const char *fmt, ...) {
 
     #ifdef CONFIG_TARGET_HAS_UI
         if (console_has_caps(current_console, CONSOLE_CAP_UI)) {
-            ui_window_t *window;
+            ui_window_t window;
 
-            window = malloc(sizeof(*window));
-            window->type = &boot_error_window_type;
-            window->title = "Boot Error";
+            window.type = &boot_error_window_type;
+            window.title = "Boot Error";
 
-            ui_display(window, 0);
-            ui_window_destroy(window);
+            ui_display(&window, 0);
 
             /* Jump into the shell (only get here if it is enabled). */
             shell_main();

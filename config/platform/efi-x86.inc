@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2014 Alex Smith
+# Copyright (C) 2015 Alex Smith
 #
 # Permission to use, copy, modify, and/or distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -14,28 +14,12 @@
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #
 
-Import('config', 'defaults', 'env')
-from util import FeatureSources
-
-sources = FeatureSources(config, [
-    'loader/linux.c',
-    'loader/multiboot.c',
-
-    'relocate.c',
-    'start.S',
-])
-
-# Set the linker script path.
-env['LDSCRIPT'] = env.LDScript('link.ld', 'link.ld.in')
-
-# Build the final EFI binary.
-kboot = env.Command(
-    env['OUTDIR'].File('kbootx64.efi'),
-    env['KBOOT'],
-    Action(
-        '$OBJCOPY -j .text -j .reloc -j .data -j .dynamic -j .rela ' +
-            '-j .dynsym -j .bss --target=efi-app-x86_64 $SOURCE $TARGET',
-        '$GENCOMSTR'))
-defaults.append(kboot)
-
-Return('sources')
+include = {
+    'includes': ['platform/efi'],
+    'config': {
+        'EFI_ARCH': 'x86',
+        'EFI_ARCH_X86': True,
+        'DRIVER_SERIAL_NS16550': True,
+        'TARGET_NS16550_IO': True,
+    },
+}

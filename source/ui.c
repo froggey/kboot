@@ -115,24 +115,41 @@ typedef struct ui_textview {
     size_t offset;                      /**< First line displayed. */
 } ui_textview_t;
 
-/** Properties of the UI console. */
-static size_t ui_console_width;
-static size_t ui_console_height;
+/**
+ * Maximum UI size.
+ *
+ * We have a maximum size for the UI because on high resolution framebuffer
+ * consoles the UI is too spread out if we take up the entire screen. This is
+ * the size you get on a 1024x768 framebuffer.
+ */
+#define UI_MAX_WIDTH        128
+#define UI_MAX_HEIGHT       48
+
+/** Region that the UI will be drawn in. */
+static draw_region_t ui_region;
 
 /** UI nesting count (nested calls to ui_display()). */
 static unsigned ui_nest_count;
 
+/** UI title stack (see ui_push_title()). */
+static const char *ui_title_stack[8];
+static unsigned ui_title_count;
+
 /** Dimensions of the content area. */
-#define CONTENT_WIDTH               (ui_console_width - 4)
-#define CONTENT_HEIGHT              (ui_console_height - 6)
+#define CONTENT_WIDTH       ((size_t)ui_region.width - 4)
+#define CONTENT_HEIGHT      ((size_t)ui_region.height - 6)
 
 /** Destroy a window.
  * @param window        Window to destroy. */
 void ui_window_destroy(ui_window_t *window) {
     if (window->type->destroy)
         window->type->destroy(window);
+}
 
-    free(window);
+/** Generic helper to free an entry.
+ * @param entry         Entry to free. */
+static void ui_entry_generic_destroy(ui_entry_t *entry) {
+    free(entry);
 }
 
 /** Destroy a list entry.
@@ -140,8 +157,6 @@ void ui_window_destroy(ui_window_t *window) {
 void ui_entry_destroy(ui_entry_t *entry) {
     if (entry->type->destroy)
         entry->type->destroy(entry);
-
-    free(entry);
 }
 
 /** Return whether an entry is selectable.
@@ -177,6 +192,12 @@ void ui_print_action(uint16_t key, const char *name) {
     case CONSOLE_KEY_F1 ... CONSOLE_KEY_F10:
         printf("F%u", key + 1 - CONSOLE_KEY_F1);
         break;
+    case CONSOLE_KEY_PGUP:
+        printf("PgUp");
+        break;
+    case CONSOLE_KEY_PGDOWN:
+        printf("PgDown");
+        break;
     case '\n':
         printf("Enter");
         break;
@@ -191,13 +212,41 @@ void ui_print_action(uint16_t key, const char *name) {
     printf(" = %s  ", name);
 }
 
+/**
+ * Push a title onto the title stack.
+ *
+ * In the UI, the title bar displays the history of how the current window was
+ * reached. In a couple of cases we want to include extra things into this list,
+ * for example if we go to a nested menu that is accessible through the F* keys
+ * from the main menu. If we just tracked the windows are being shown, this
+ * would result in "Boot Menu > Submenu Name". What we want is "Boot Menu >
+ * Entry Name > Submenu Name". This function allows the entry name to be pushed
+ * in.
+ *
+ * Every call to this function should be matched by a ui_pop_title() to remove
+ * the pushed name.
+ *
+ * @param title         Title to push (must not be freed while on stack).
+ */
+void ui_push_title(const char *title) {
+    if (ui_title_count == array_size(ui_title_stack))
+        internal_error("Too many nested menus");
+
+    ui_title_stack[ui_title_count++] = title;
+}
+
+/** Pop a title from the title stack. */
+void ui_pop_title(void) {
+    ui_title_count--;
+}
+
 /** Set the draw region to the title region. */
 static inline void set_title_region(void) {
     draw_region_t region;
 
-    region.x = 2;
-    region.y = 1;
-    region.width = ui_console_width - 4;
+    region.x = ui_region.x + 2;
+    region.y = ui_region.y + 1;
+    region.width = ui_region.width - 4;
     region.height = 1;
     region.scrollable = false;
 
@@ -209,9 +258,9 @@ static inline void set_title_region(void) {
 static inline void set_help_region(void) {
     draw_region_t region;
 
-    region.x = 2;
-    region.y = ui_console_height - 2;
-    region.width = ui_console_width - 4;
+    region.x = ui_region.x + 2;
+    region.y = ui_region.y + ui_region.height - 2;
+    region.width = ui_region.width - 4;
     region.height = 1;
     region.scrollable = false;
 
@@ -223,9 +272,9 @@ static inline void set_help_region(void) {
 static inline void set_error_region(void) {
     draw_region_t region;
 
-    region.x = 2;
-    region.y = ui_console_height - 4;
-    region.width = ui_console_width - 4;
+    region.x = ui_region.x + 2;
+    region.y = ui_region.y + ui_region.height - 4;
+    region.width = ui_region.width - 4;
     region.height = 1;
     region.scrollable = false;
 
@@ -237,8 +286,8 @@ static inline void set_error_region(void) {
 static inline void set_content_region(void) {
     draw_region_t region;
 
-    region.x = 2;
-    region.y = 3;
+    region.x = ui_region.x + 2;
+    region.y = ui_region.y + 3;
     region.width = CONTENT_WIDTH;
     region.height = CONTENT_HEIGHT;
     region.scrollable = false;
@@ -296,7 +345,14 @@ static void render_window(ui_window_t *window, unsigned timeout) {
 
     /* Draw the title. */
     set_title_region();
-    printf("%s", window->title);
+
+    /* Print the last 3 titles on the stack. */
+    for (unsigned i = (ui_title_count > 3) ? ui_title_count - 3 : 0; i < ui_title_count; i++) {
+        printf("%s", ui_title_stack[i]);
+
+        if (i != ui_title_count - 1)
+            printf(" > ");
+    }
 
     /* Draw the help text. */
     render_help(window, timeout, false);
@@ -309,26 +365,35 @@ static void render_window(ui_window_t *window, unsigned timeout) {
 /** Display a user interface.
  * @param window        Window to display.
  * @param timeout       Seconds to wait before closing the window if no input.
- *                      If 0, the window will not time out. */
-void ui_display(ui_window_t *window, unsigned timeout) {
+ *                      If 0, the window will not time out.
+ * @return              True if the UI was manually exited, false if timed out. */
+bool ui_display(ui_window_t *window, unsigned timeout) {
     mstime_t msecs;
+    bool ret;
 
     if (!ui_nest_count) {
-        draw_region_t region;
-
         if (!console_has_caps(current_console, CONSOLE_CAP_UI | CONSOLE_CAP_IN))
-            return;
+            return false;
 
         /* First entry into UI, begin UI mode on the console. */
         console_begin_ui(current_console);
 
-        /* Save console dimensions for convenient access. */
-        console_get_region(current_console, &region);
-        ui_console_width = region.width;
-        ui_console_height = region.height;
+        /* Determine the region we will draw the UI in. */
+        console_get_region(current_console, &ui_region);
+
+        if (ui_region.width > UI_MAX_WIDTH) {
+            ui_region.x += (ui_region.width - UI_MAX_WIDTH) / 2;
+            ui_region.width = UI_MAX_WIDTH;
+        }
+
+        if (ui_region.height > UI_MAX_HEIGHT) {
+            ui_region.y += (ui_region.height - UI_MAX_HEIGHT) / 2;
+            ui_region.height = UI_MAX_HEIGHT;
+        }
     }
 
     ui_nest_count++;
+    ui_push_title(window->title);
 
     render_window(window, timeout);
 
@@ -345,8 +410,10 @@ void ui_display(ui_window_t *window, unsigned timeout) {
 
                 if (round_up(msecs, 1000) / 1000 < timeout) {
                     timeout--;
-                    if (!timeout)
+                    if (!timeout) {
+                        ret = false;
                         break;
+                    }
 
                     render_help(window, timeout, true);
                 }
@@ -354,12 +421,13 @@ void ui_display(ui_window_t *window, unsigned timeout) {
         } else {
             uint16_t key = console_getc(current_console);
             input_result_t result = window->type->input(window, key);
-            bool done = false;
+
+            if (result == INPUT_CLOSE) {
+                ret = true;
+                break;
+            }
 
             switch (result) {
-            case INPUT_CLOSE:
-                done = true;
-                break;
             case INPUT_RENDER_HELP:
                 /* Doing a partial update, should preserve the draw region and the
                  * cursor state within it. */
@@ -372,16 +440,16 @@ void ui_display(ui_window_t *window, unsigned timeout) {
                 /* INPUT_RENDER_ENTRY is handled by ui_list_input(). */
                 break;
             }
-
-            if (done)
-                break;
         }
     }
 
+    ui_pop_title();
     ui_nest_count--;
 
     if (!ui_nest_count)
         console_end_ui(current_console);
+
+    return ret;
 }
 
 /** Destroy a list window.
@@ -393,6 +461,7 @@ static void ui_list_destroy(ui_window_t *window) {
         ui_entry_destroy(list->entries[i]);
 
     free(list->entries);
+    free(list);
 }
 
 /** Render an entry from a list.
@@ -431,6 +500,10 @@ static void ui_list_render(ui_window_t *window) {
     ui_list_t *list = (ui_list_t *)window;
     size_t end;
 
+    /* Set offset if currently selected entry is off-screen. */
+    if (list->selected < list->offset || list->selected - list->offset >= CONTENT_HEIGHT)
+        list->offset = (list->selected - CONTENT_HEIGHT) + 1;
+
     /* Calculate the range of entries to display. */
     end = min(list->offset + CONTENT_HEIGHT, list->count);
 
@@ -454,9 +527,6 @@ static void ui_list_help(ui_window_t *window) {
         if (selected->type->help)
             selected->type->help(selected);
     }
-
-    if (list->exitable)
-        ui_print_action('\e', "Back");
 }
 
 /** Handle input on a list window.
@@ -603,10 +673,7 @@ void ui_list_insert(ui_window_t *window, ui_entry_t *entry, bool selected) {
      * the first thing added is a section header). */
     if (selected || (!list->selected && !ui_entry_selectable(list->entries[0]))) {
         assert(ui_entry_selectable(entry));
-
         list->selected = pos;
-        if (pos >= CONTENT_HEIGHT)
-            list->offset = (pos - CONTENT_HEIGHT) + 1;
     }
 }
 
@@ -622,6 +689,7 @@ static void ui_label_render(ui_entry_t *entry) {
 
 /** Label entry type. */
 static ui_entry_type_t ui_label_entry_type = {
+    .destroy = ui_entry_generic_destroy,
     .render = ui_label_render,
 };
 
@@ -686,6 +754,7 @@ static input_result_t ui_link_input(ui_entry_t *entry, uint16_t key) {
 
 /** Link entry type. */
 static ui_entry_type_t ui_link_entry_type = {
+    .destroy = ui_entry_generic_destroy,
     .render = ui_link_render,
     .help = ui_link_help,
     .input = ui_link_input,
@@ -754,6 +823,7 @@ static input_result_t ui_checkbox_input(ui_entry_t *entry, uint16_t key) {
 
 /** Checkbox entry type. */
 static ui_entry_type_t ui_checkbox_entry_type = {
+    .destroy = ui_entry_generic_destroy,
     .render = ui_checkbox_render,
     .help = ui_checkbox_help,
     .input = ui_checkbox_input,
@@ -923,6 +993,7 @@ static input_result_t ui_textbox_input(ui_entry_t *entry, uint16_t key) {
 
 /** Textbox entry type. */
 static ui_entry_type_t ui_textbox_entry_type = {
+    .destroy = ui_entry_generic_destroy,
     .render = ui_textbox_render,
     .help = ui_textbox_help,
     .input = ui_textbox_input,
@@ -950,6 +1021,7 @@ static void ui_chooser_destroy(ui_entry_t *entry) {
     ui_chooser_t *chooser = (ui_chooser_t *)entry;
 
     ui_window_destroy(chooser->list);
+    free(chooser);
 }
 
 /** Render a chooser.
@@ -1067,6 +1139,7 @@ static void ui_choice_destroy(ui_entry_t *entry) {
 
     value_destroy(&choice->value);
     free(choice->label);
+    free(choice);
 }
 
 /** Render a choice.
@@ -1155,6 +1228,7 @@ static void ui_textview_destroy(ui_window_t *window) {
     ui_textview_t *textview = (ui_textview_t *)window;
 
     free(textview->lines);
+    free(textview);
 }
 
 /** Print a line from a text view.
@@ -1206,6 +1280,7 @@ static input_result_t ui_textview_input(ui_window_t *window, uint16_t key) {
             console_set_cursor_pos(current_console, 0, 0);
             render_textview_line(textview, --textview->offset);
 
+            /* Available actions may change if we're now at the top. */
             return INPUT_RENDER_HELP;
         }
 
@@ -1217,6 +1292,22 @@ static input_result_t ui_textview_input(ui_window_t *window, uint16_t key) {
             render_textview_line(textview, textview->offset++ + CONTENT_HEIGHT);
 
             return INPUT_RENDER_HELP;
+        }
+
+        return INPUT_HANDLED;
+    case CONSOLE_KEY_PGUP:
+        if (textview->offset) {
+            textview->offset -= min(textview->offset, CONTENT_HEIGHT);
+            return INPUT_RENDER_WINDOW;
+        }
+
+        return INPUT_HANDLED;
+    case CONSOLE_KEY_PGDOWN:
+        if (textview->count - textview->offset > CONTENT_HEIGHT) {
+            textview->offset += min(
+                textview->count - textview->offset - CONTENT_HEIGHT,
+                CONTENT_HEIGHT);
+            return INPUT_RENDER_WINDOW;
         }
 
         return INPUT_HANDLED;
