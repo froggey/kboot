@@ -56,6 +56,11 @@ static int determine_vbe_mode_layout(video_mode_t *mode) {
     if(mode->type != VIDEO_MODE_LFB) {
         return 0;
     }
+    dprintf("FB bpp:%i  r:%i %i  g:%i %i  b:%i %i\n",
+            mode->format.bpp,
+            mode->format.red_size, mode->format.red_pos,
+            mode->format.green_size, mode->format.green_pos,
+            mode->format.blue_size, mode->format.blue_pos);
     switch(mode->format.bpp) {
     case 32:
         if(mode->format.red_size == 8 &&
@@ -86,17 +91,38 @@ static int determine_vbe_mode_layout(video_mode_t *mode) {
 
 void mezzano_set_video_mode(mezzano_boot_information_t *boot_info)
 {
-    video_mode_t *mode;
-    int layout;
-
-    mode = video_env_set(current_environ, "video_mode");
-    if(!mode) {
-        boot_error("Unable to find supported video mode.");
+    value_t *value = environ_lookup(current_environ, "video_mode");
+    if (!value || value->type != VALUE_TYPE_STRING) {
+        boot_error("No video mode specified.");
     }
 
-    layout = determine_vbe_mode_layout(mode);
+    video_mode_specifier_t spec;
+    if(video_parse_mode(value->string, &spec) != STATUS_SUCCESS) {
+        boot_error("Bad video mode %s.", value->string);
+    }
+
+    video_mode_t *mode;
+    if(spec.bpp != 0) {
+        // Use mode as-is.
+        mode = video_find_mode_by_specifier(&spec);
+    } else {
+        // Try 32bpp, then 24bpp.
+        // Don't bother with 16-bit or 8-bit modes.
+        spec.bpp = 32;
+        mode = video_find_mode_by_specifier(&spec);
+        if(!mode) {
+            spec.bpp = 24;
+            mode = video_find_mode_by_specifier(&spec);
+        }
+    }
+
+    if(!mode) {
+        boot_error("Unable to find supported video mode %s.", value->string);
+    }
+
+    int layout = determine_vbe_mode_layout(mode);
     if(!layout) {
-        boot_error("Unable to find supported video mode.");
+        boot_error("Incompatible video mode %s.", value->string);
     }
 
     dprintf("mezzano: Using %ix%i video mode, layout %i, pitch %i, fb at %08x\n",
@@ -106,6 +132,8 @@ void mezzano_set_video_mode(mezzano_boot_information_t *boot_info)
     boot_info->video.framebuffer_pitch = fixnum(mode->pitch);
     boot_info->video.framebuffer_height = fixnum(mode->height);
     boot_info->video.framebuffer_layout = fixnum(layout);
+
+    video_set_mode(mode, true);
 }
 
 static bool acpi_checksum_range(phys_ptr_t start, unsigned int size) {
