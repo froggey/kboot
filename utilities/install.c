@@ -36,6 +36,7 @@
 static const char *target_bin_dir;
 
 /** Parsed arguments. */
+static const char *arg_bin_dir;
 static const char *arg_device;
 static const char *arg_dir;
 static int arg_fallback;
@@ -561,9 +562,11 @@ static void usage(const char *argv0, FILE *stream) {
         "EFI boot manager, with the specified label.\n"
         "\n"
         "Generic options:\n"
+        "  --bin-dir=DIR     Directory in which to search for target binaries\n"
         "  --help, -h        Show this help\n"
         "  --target=TARGET   Specify target system type\n"
         "  --update          Perform an update (behaviour target-specific)\n"
+        "  --version         Display the KBoot version\n"
         "\n"
         "Installation location options:\n"
         "  --device=DEVICE   Install to a device\n"
@@ -593,20 +596,31 @@ static void find_target_bin_dir(const char *argv0) {
     if (!program_dir)
         error("Failed to get program path\n");
 
-    /* Try to locate the data directory. TODO: Installed location. */
-    snprintf(buf, sizeof(buf), "%s/../../../build/%s/bin", program_dir, arg_target);
-    if (stat(buf, &st) == 0 && st.st_mode & S_IFDIR) {
-        target_bin_dir = realpath(buf, NULL);
+    /* Try to locate the data directory. */
+    if (arg_bin_dir) {
+        snprintf(buf, sizeof(buf), "%s/%s", arg_bin_dir, arg_target);
+        if (stat(buf, &st) != 0 || !(st.st_mode & S_IFDIR))
+            error("Target '%s' could not be found\n", arg_target);
     } else {
-        error("Target '%s' could not be found\n", arg_target);
+        snprintf(buf, sizeof(buf), "%s/../../../build/%s/bin", program_dir, arg_target);
+        if (stat(buf, &st) != 0 || !(st.st_mode & S_IFDIR)) {
+            snprintf(buf, sizeof(buf), "%s/%s", KBOOT_LIBDIR, arg_target);
+            if (stat(buf, &st) != 0 || !(st.st_mode & S_IFDIR))
+                error("Target '%s' could not be found\n", arg_target);
+        }
     }
+
+    target_bin_dir = realpath(buf, NULL);
+    if (!target_bin_dir)
+        error("Error getting real path of '%s': %s\n", buf, strerror(errno));
 
     free(program_dir);
 }
 
 /** Option identifiers. */
 enum {
-    OPT_DEVICE = 0x100,
+    OPT_BIN_DIR = 0x100,
+    OPT_DEVICE,
     OPT_DIR,
     OPT_IMAGE,
     OPT_OFFSET,
@@ -614,10 +628,12 @@ enum {
     OPT_TARGET,
     OPT_VENDOR_ID,
     OPT_LABEL,
+    OPT_VERSION,
 };
 
 /** Option descriptions. */
 static const struct option options[] = {
+    { "bin-dir",   required_argument, NULL,          OPT_BIN_DIR   },
     { "device",    required_argument, NULL,          OPT_DEVICE    },
     { "dir",       required_argument, NULL,          OPT_DIR       },
     { "dry-run",   no_argument,       &arg_dry_run,  1             },
@@ -631,6 +647,7 @@ static const struct option options[] = {
     { "update",    no_argument,       &arg_update,   1             },
     { "vendor-id", required_argument, NULL,          OPT_VENDOR_ID },
     { "verbose",   no_argument,       &arg_verbose,  1             },
+    { "version",   no_argument,       NULL,          OPT_VERSION   },
     { NULL,        0,                 NULL,          0             }
 };
 
@@ -643,11 +660,8 @@ int main(int argc, char **argv) {
         char *end;
 
         switch (opt) {
-        case OPT_VENDOR_ID:
-            arg_vendor_id = optarg;
-            break;
-        case OPT_LABEL:
-            arg_label = optarg;
+        case OPT_BIN_DIR:
+            arg_bin_dir = optarg;
             break;
         case OPT_DEVICE:
             arg_device = optarg;
@@ -660,6 +674,9 @@ int main(int argc, char **argv) {
             return EXIT_SUCCESS;
         case OPT_IMAGE:
             arg_image = optarg;
+            break;
+        case OPT_LABEL:
+            arg_label = optarg;
             break;
         case OPT_OFFSET:
             arg_offset = strtoull(optarg, &end, 0);
@@ -677,6 +694,12 @@ int main(int argc, char **argv) {
         case OPT_TARGET:
             arg_target = optarg;
             break;
+        case OPT_VENDOR_ID:
+            arg_vendor_id = optarg;
+            break;
+        case OPT_VERSION:
+            printf("KBoot version %s\n", KBOOT_LOADER_VERSION);
+            return EXIT_SUCCESS;
         case 0:
             break;
         default:

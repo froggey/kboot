@@ -114,8 +114,9 @@ static const char *current_command;
 static const char *current_path;        /**< Current configuration file path. */
 static int current_line;                /**< Current line in the file. */
 static int current_col;                 /**< Current column in the file (minus 1). */
-static unsigned current_nest_count;     /**< Current nesting count. */
+static unsigned nesting_count;          /**< Parser nesting count. */
 static int returned_char;               /**< Character returned with return_char() (0 is no char). */
+static bool ignore_comments;            /**< Whether to ignore comments. */
 
 /** Current file state used by config_load(). */
 static char *current_file;              /**< Pointer to data for current file. */
@@ -133,6 +134,17 @@ static const char *reserved_environ_names[] = {
     "device",
     "device_label",
     "device_uuid",
+};
+
+/** Environment variable names to not inherit. */
+static const char *no_inherit_environ_names[] = {
+    "default",
+    "gui",
+    "gui_background",
+    "gui_icon",
+    "gui_selection",
+    "hidden",
+    "timeout",
 };
 
 /** Overridden configuration file path. */
@@ -555,6 +567,7 @@ static bool command_exec(command_list_entry_t *entry) {
  * @return              Whether all of the commands completed successfully. */
 bool command_list_exec(command_list_t *list, environ_t *env) {
     environ_t *prev;
+    bool ret = false;
 
     /* Set the environment as the current. */
     prev = current_environ;
@@ -568,22 +581,18 @@ bool command_list_exec(command_list_t *list, environ_t *env) {
          * other commands from being run if we have a loader set. */
         if (current_environ->loader) {
             config_error("Loader command must be final command");
-            return false;
+            goto out;
         }
 
-        if (!command_exec(entry)) {
-            current_environ = prev;
-            return false;
-        }
+        if (!command_exec(entry))
+            goto out;
     }
 
-    /* Restore the previous environment if not NULL. This has the effect of
-     * keeping current_environ set to the root environment when we finish
-     * executing the top level configuration. */
-    if (prev)
-        current_environ = prev;
+    ret = true;
 
-    return true;
+out:
+    current_environ = prev;
+    return ret;
 }
 
 /**
@@ -610,8 +619,20 @@ environ_t *environ_create(environ_t *parent) {
 
         list_foreach(&parent->entries, iter) {
             const environ_entry_t *entry = list_entry(iter, environ_entry_t, header);
-            environ_entry_t *clone = malloc(sizeof(*clone));
+            environ_entry_t *clone;
 
+            /* Check if this is a name we should not inherit. */
+            for (size_t i = 0; i < array_size(no_inherit_environ_names); i++) {
+                if (!strcmp(entry->name, no_inherit_environ_names[i])) {
+                    entry = NULL;
+                    break;
+                }
+            }
+
+            if (!entry)
+                continue;
+
+            clone = malloc(sizeof(*clone));
             list_init(&clone->header);
             clone->name = strdup(entry->name);
             value_copy(&entry->value, &clone->value);
@@ -628,6 +649,8 @@ environ_t *environ_create(environ_t *parent) {
 /** Destroy an environment.
  * @param env           Environment to destroy. */
 void environ_destroy(environ_t *env) {
+    menu_cleanup(env);
+
     list_foreach_safe(&env->entries, iter) {
         environ_entry_t *entry = list_entry(iter, environ_entry_t, header);
 
@@ -785,23 +808,32 @@ void environ_boot(environ_t *env) {
 /** Read a character from the input.
  * @return              Character read. */
 static int read_char(void) {
+    bool in_comment = false;
     int ch;
 
-    if (returned_char) {
-        ch = returned_char;
-        returned_char = 0;
-    } else {
-        ch = current_helper(current_nest_count);
-    }
+    do {
+        if (returned_char) {
+            ch = returned_char;
+            returned_char = 0;
+        } else {
+            ch = current_helper(nesting_count);
+        }
 
-    if (ch == '\n') {
-        current_line++;
-        current_col = 0;
-    } else if (ch == '\t') {
-        current_col += 8 - (current_col % 8);
-    } else {
-        current_col++;
-    }
+        if (ch == '\n') {
+            current_line++;
+            current_col = 0;
+
+            if (in_comment)
+                in_comment = false;
+        } else if (ch == '\t') {
+            current_col += 8 - (current_col % 8);
+        } else {
+            if (!ignore_comments && ch == '#')
+                in_comment = true;
+
+            current_col++;
+        }
+    } while (in_comment);
 
     return ch;
 }
@@ -877,6 +909,9 @@ static uint64_t parse_integer(int ch) {
 static char *parse_string(void) {
     bool escaped = false;
 
+    /* Shouldn't treat # as comment inside a string. */
+    ignore_comments = true;
+
     while (true) {
         int ch = read_char();
 
@@ -885,6 +920,8 @@ static char *parse_string(void) {
             temp_buf_idx = 0;
             return NULL;
         } else if (!escaped && ch == '"') {
+            ignore_comments = false;
+
             temp_buf[temp_buf_idx] = 0;
             temp_buf_idx = 0;
             return strdup(temp_buf);
@@ -984,27 +1021,27 @@ static value_list_t *parse_value_list(bool command) {
         } else if (ch == '"') {
             value->type = VALUE_TYPE_STRING;
 
-            current_nest_count++;
+            nesting_count++;
             value->string = parse_string();
-            current_nest_count--;
+            nesting_count--;
 
             if (!value->string)
                 break;
         } else if (ch == '[') {
             value->type = VALUE_TYPE_LIST;
 
-            current_nest_count++;
+            nesting_count++;
             value->list = parse_value_list(false);
-            current_nest_count--;
+            nesting_count--;
 
             if (!value->list)
                 break;
         } else if (ch == '{') {
             value->type = VALUE_TYPE_COMMAND_LIST;
 
-            current_nest_count++;
+            nesting_count++;
             value->cmds = parse_command_list();
-            current_nest_count--;
+            nesting_count--;
 
             if (!value->cmds)
                 break;
@@ -1036,20 +1073,15 @@ static value_list_t *parse_value_list(bool command) {
 static command_list_t *parse_command_list(void) {
     command_list_t *list;
     int endch;
-    bool in_comment;
 
     list = malloc(sizeof(*list));
     list_init(list);
 
-    endch = (current_nest_count) ? '}' : EOF;
-    in_comment = false;
+    endch = (nesting_count) ? '}' : EOF;
     while (true) {
         int ch = read_char();
 
-        if (in_comment) {
-            if (ch == '\n')
-                in_comment = false;
-        } else if (ch == endch || isspace(ch)) {
+        if (ch == endch || isspace(ch)) {
             command_list_entry_t *command;
 
             if (temp_buf_idx == 0) {
@@ -1062,11 +1094,6 @@ static command_list_t *parse_command_list(void) {
 
             temp_buf[temp_buf_idx] = 0;
             temp_buf_idx = 0;
-
-            if (temp_buf[0] == '#' && ch != '\n') {
-                in_comment = true;
-                continue;
-            }
 
             /* End of command name, push it onto the list. */
             command = malloc(sizeof(*command));
@@ -1104,11 +1131,12 @@ command_list_t *config_parse(const char *path, config_read_helper_t helper) {
     current_path = path;
     current_line = 1;
     current_col = 0;
-    current_nest_count = 0;
+    nesting_count = 0;
     returned_char = 0;
+    ignore_comments = false;
 
     list = parse_command_list();
-    assert(!current_nest_count);
+    assert(!nesting_count);
     return list;
 }
 
@@ -1159,6 +1187,21 @@ static bool config_cmd_help(value_list_t *args) {
 }
 
 BUILTIN_COMMAND("help", "List available commands", config_cmd_help);
+
+/** Display the KBoot version.
+ * @param args          Argument list.
+ * @return              Whether successful. */
+static bool config_cmd_version(value_list_t *args) {
+    if (args->count != 0) {
+        config_error("Invalid arguments");
+        return false;
+    }
+
+    printf("KBoot version %s\n", kboot_loader_version);
+    return true;
+}
+
+BUILTIN_COMMAND("version", "Display the KBoot version", config_cmd_version);
 
 /** Print a list of environment variables.
  * @param args          Argument list.
@@ -1285,6 +1328,17 @@ static bool config_cmd_unset(value_list_t *args) {
 BUILTIN_COMMAND("unset", "Unset an environment variable", config_cmd_unset);
 
 /** Reboot the system.
+ * @param private       Unused. */
+static __noreturn void reboot_loader_load(void *private) {
+    target_reboot();
+}
+
+/** Reboot loader operations. */
+static loader_ops_t reboot_loader_ops = {
+    .load = reboot_loader_load,
+};
+
+/** Reboot the system.
  * @param args          Argument list.
  * @return              Whether successful. */
 static bool config_cmd_reboot(value_list_t *args) {
@@ -1293,10 +1347,22 @@ static bool config_cmd_reboot(value_list_t *args) {
         return false;
     }
 
-    target_reboot();
+    environ_set_loader(current_environ, &reboot_loader_ops, NULL);
+    return true;
 }
 
 BUILTIN_COMMAND("reboot", "Reboot the system", config_cmd_reboot);
+
+/** Exit the loader.
+ * @param private       Unused. */
+static __noreturn void exit_loader_load(void *private) {
+    target_exit();
+}
+
+/** Exit loader operations. */
+static loader_ops_t exit_loader_ops = {
+    .load = exit_loader_load,
+};
 
 /** Exit the loader and return to firmware.
  * @param args          Argument list.
@@ -1307,7 +1373,8 @@ static bool config_cmd_exit(value_list_t *args) {
         return false;
     }
 
-    target_exit();
+    environ_set_loader(current_environ, &exit_loader_ops, NULL);
+    return true;
 }
 
 BUILTIN_COMMAND("exit", "Exit the loader and return to firmware", config_cmd_exit);
@@ -1382,7 +1449,7 @@ static void load_config_file(const char *path, bool must_exist) {
     fs_handle_t *handle;
     status_t ret;
     char *dir __cleanup_free = NULL;
-    environ_t *env;
+    environ_t *env, *target;
     bool ok;
 
     ret = fs_open(path, NULL, FILE_TYPE_REGULAR, 0, &handle);
@@ -1394,38 +1461,41 @@ static void load_config_file(const char *path, bool must_exist) {
     }
 
     list = parse_config_file(handle, path);
-    fs_close(handle);
-    if (!list)
-        return;
-
-    current_environ = environ_create(root_environ);
-
-    /* Set the device and directory in the environment to those containing the
-     * configuration file. */
-    dir = dirname(path);
-    ret = fs_open(dir, NULL, FILE_TYPE_DIR, 0, &handle);
-    if (ret != STATUS_SUCCESS) {
-        /* Really this should succeed since we managed to open the file... */
-        config_error("Error opening '%s': %pS", dir, ret);
+    if (!list) {
+        fs_close(handle);
         return;
     }
 
-    environ_set_device(current_environ, handle->mount->device);
-    environ_set_directory(current_environ, handle);
+    env = environ_create(root_environ);
+
+    /* Set the device in the environment to the one containing the config. */
+    environ_set_device(env, handle->mount->device);
+
     fs_close(handle);
 
-    ok = command_list_exec(list, current_environ);
+    /* Set the directory. Note this may fail on certain filesystems, e.g. PXE. */
+    dir = dirname(path);
+    ret = fs_open(dir, NULL, FILE_TYPE_DIR, 0, &handle);
+    if (ret == STATUS_SUCCESS) {
+        environ_set_directory(env, handle);
+        fs_close(handle);
+    }
+
+    ok = command_list_exec(list, env);
     command_list_destroy(list);
     if (ok) {
         /* Select an environment to boot. */
-        env = menu_select();
+        target = menu_select(env);
 
         /* And finally boot the OS. */
-        if (env->loader) {
-            environ_boot(env);
+        if (target->loader) {
+            environ_boot(target);
         } else {
+            environ_destroy(env);
             boot_error("No operating system to boot");
         }
+    } else {
+        environ_destroy(env);
     }
 }
 

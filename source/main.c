@@ -48,6 +48,8 @@ void loader_preboot(void) {
 
 /** Main function of the loader. */
 void loader_main(void) {
+    dprintf("loader: version is %s\n", kboot_loader_version);
+
     config_init();
     memory_init();
     device_init();
