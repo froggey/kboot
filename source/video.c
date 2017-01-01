@@ -151,6 +151,14 @@ video_mode_t *video_find_mode(video_mode_type_t type, uint32_t width, uint32_t h
     return ret;
 }
 
+/** Set a video mode.
+ *
+ * Identical to video_find_mode, except the mode parametes are taken in
+ * a specifier, instead of individually. */
+video_mode_t *video_find_mode_by_specifier(video_mode_specifier_t *spec) {
+    return video_find_mode(spec->type, spec->width, spec->height, spec->bpp);
+}
+
 /**
  * Parse a video mode string and find a matching mode.
  *
@@ -162,33 +170,54 @@ video_mode_t *video_find_mode(video_mode_type_t type, uint32_t width, uint32_t h
  * @return              Mode found, or NULL if none matching.
  */
 video_mode_t *video_parse_and_find_mode(const char *str) {
+    status_t st;
+    video_mode_specifier_t spec;
+
+    st = video_parse_mode(str, &spec);
+    if(st) {
+        return NULL;
+    }
+
+    return video_find_mode_by_specifier(&spec);
+}
+
+/**
+ * Parse a video mode string.
+ *
+ * Parses a string in the form "<type>[:<width>x<height>[x<bpp>]]".
+ * Missing values will default to 0.
+ *
+ * @param str           String to parse.
+ * @param spec          Structure to fill with the parsed mode.
+ *
+ * @return              Status code describing the result of the operation.
+ */
+status_t video_parse_mode(const char *str, video_mode_specifier_t *spec) {
     char *orig __cleanup_free = NULL;
     char *dup, *tok;
-    video_mode_type_t type;
-    uint32_t width, height, bpp;
 
     dup = orig = strdup(str);
 
     tok = strsep(&dup, ":");
     if (!tok)
-        return NULL;
+        return STATUS_INVALID_ARG;
 
     if (strcmp(tok, "vga") == 0) {
-        type = VIDEO_MODE_VGA;
+        spec->type = VIDEO_MODE_VGA;
     } else if (strcmp(tok, "lfb") == 0) {
-        type = VIDEO_MODE_LFB;
+        spec->type = VIDEO_MODE_LFB;
     } else {
-        return NULL;
+        return STATUS_INVALID_ARG;
     }
 
     tok = strsep(&dup, "x");
-    width = (tok) ? strtoul(tok, NULL, 10) : 0;
+    spec->width = (tok) ? strtoul(tok, NULL, 10) : 0;
     tok = strsep(&dup, "x");
-    height = (tok) ? strtoul(tok, NULL, 10) : 0;
+    spec->height = (tok) ? strtoul(tok, NULL, 10) : 0;
     tok = strsep(&dup, "x");
-    bpp = (tok) ? strtoul(tok, NULL, 10) : 0;
+    spec->bpp = (tok) ? strtoul(tok, NULL, 10) : 0;
 
-    return video_find_mode(type, width, height, bpp);
+    return STATUS_SUCCESS;
 }
 
 /** Format a video mode string.

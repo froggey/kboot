@@ -82,6 +82,14 @@ typedef struct video_mode {
     };
 } video_mode_t;
 
+/** A parsed "video_mode" specifier. */
+typedef struct video_mode_specifier {
+    video_mode_type_t type;             /**< Type of the video mode. */
+    uint32_t width;
+    uint32_t height;
+    uint32_t bpp;
+} video_mode_specifier_t;
+
 #ifdef CONFIG_TARGET_HAS_VIDEO
 
 /** Structure containing video mode operations. */
@@ -101,6 +109,8 @@ extern video_mode_t *current_video_mode;
 extern void video_set_mode(video_mode_t *mode, bool set_console);
 
 extern video_mode_t *video_find_mode(video_mode_type_t type, uint32_t width, uint32_t height, uint32_t bpp);
+extern video_mode_t *video_find_mode_by_specifier(video_mode_specifier_t *spec);
+extern status_t video_parse_mode(const char *str, video_mode_specifier_t *spec);
 extern video_mode_t *video_parse_and_find_mode(const char *str);
 
 extern void video_env_init(struct environ *env, const char *name, uint32_t types, video_mode_t *def);
