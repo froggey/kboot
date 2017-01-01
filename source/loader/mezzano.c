@@ -43,6 +43,17 @@ static const char mezzano_magic[] = "\x00MezzanineImage\x00";
 static const uint16_t mezzano_protocol_major = 0;
 static const uint16_t mezzano_protocol_minor = 23;
 
+static void mprintf(const char *fmt, ...) {
+    va_list args;
+
+    va_start(args, fmt);
+    dvprintf(fmt, args);
+    va_end(args);
+    va_start(args, fmt);
+    vprintf(fmt, args);
+    va_end(args);
+}
+
 static bool in_range(uint64_t start, uint64_t end, uint64_t value) {
     return start <= value && value <= end;
 }
@@ -113,7 +124,7 @@ void mezzano_add_physical_memory_range(mmu_context_t *mmu, mezzano_boot_informat
         return;
     }
 
-    printf("mezzano: Map physical memory region %016" PRIx64 "-%016" PRIx64 " %016" PRIx64 "-%016" PRIx64 "\n",
+    mprintf("mezzano: Map physical memory region %016" PRIx64 "-%016" PRIx64 " %016" PRIx64 "-%016" PRIx64 "\n",
             orig_start, orig_end, start, end);
 
     // Map the memory into the physical map region.
@@ -124,9 +135,9 @@ void mezzano_add_physical_memory_range(mmu_context_t *mmu, mezzano_boot_informat
 }
 
 static void mezzano_finalize_memory_map(mmu_context_t *mmu, mezzano_boot_information_t *boot_info) {
-    printf("mezzano: Final memory map:\n");
+    mprintf("mezzano: Final memory map:\n");
     for(uint64_t i = 0; i < boot_info->n_memory_map_entries; i += 1) {
-        printf("  %016" PRIx64 "-%016" PRIx64 "\n",
+        mprintf("  %016" PRIx64 "-%016" PRIx64 "\n",
                boot_info->memory_map[i].start,
                boot_info->memory_map[i].end);
     }
@@ -139,7 +150,7 @@ static void mezzano_finalize_memory_map(mmu_context_t *mmu, mezzano_boot_informa
         phys_ptr_t info_start = round_down((mezzano_physical_info_address + (start / PAGE_SIZE) * sizeof(mezzano_page_info_t)), PAGE_SIZE);
         phys_ptr_t info_end = round_up((mezzano_physical_info_address + (end / PAGE_SIZE) * sizeof(mezzano_page_info_t)), PAGE_SIZE);
         phys_ptr_t phys_info_addr;
-        printf("mezzano: info range %016" PRIx64 "-%016" PRIx64 "\n", info_start, info_end);
+        mprintf("mezzano: info range %016" PRIx64 "-%016" PRIx64 "\n", info_start, info_end);
         // FIXME/TODO: It's ok for the backing pages to be discontinuous.
         // Could use 2MB pages here as well.
         void *virt = memory_alloc(info_end - info_start, // size
@@ -401,10 +412,10 @@ static void load_page(mezzano_loader_t *loader, mmu_context_t *mmu, uint64_t inf
 
 static void mezzano_read_wired_pages(mezzano_loader_t *loader, mmu_context_t *mmu, mezzano_boot_information_t *boot_info) {
     // Traverse the block map looking for wired pages.
-    printf("Loading %s pages...\n", loader->freestanding ? "all" : "wired");
+    mprintf("Loading %s pages...\n", loader->freestanding ? "all" : "wired");
     uint64_t *bml4 = (uint64_t *)(ptr_t)(boot_info->block_map_address - mezzano_physical_map_address);
     for(int i = 0; i < 512; i += 1) {
-        printf("%i ", i);
+        mprintf("%i ", i);
         if(!bml4[i]) {
             continue;
         }
@@ -434,19 +445,19 @@ static void mezzano_read_wired_pages(mezzano_loader_t *loader, mmu_context_t *mm
             }
         }
     }
-    printf("complete\n");
+    mprintf("complete\n");
 }
 
 static void dump_one_buddy_allocator(mmu_context_t *mmu, mezzano_boot_information_t *boot_info, uint64_t nil, mezzano_buddy_bin_t *buddies, int max) {
     for(int k = 0; k < max; k += 1) {
-        printf("Order %i %" PRIu64 " %016" PRIx64 ":\n", (k + log2_4k_page), buddies[k].count, buddies[k].first_page);
+        mprintf("Order %i %" PRIu64 " %016" PRIx64 ":\n", (k + log2_4k_page), buddies[k].count, buddies[k].first_page);
         uint64_t current = buddies[k].first_page;
         while(true) {
             if(current == nil) {
                 break;
             }
             assert((current & 1) == 0);
-            printf("  %016" PRIx64 "-%016" PRIx64 " %016" PRIx64 " %016" PRIx64 "\n",
+            mprintf("  %016" PRIx64 "-%016" PRIx64 " %016" PRIx64 " %016" PRIx64 "\n",
                    unfixnum(current) * PAGE_SIZE,
                    unfixnum(current) * PAGE_SIZE + ((phys_ptr_t)1 << (12+k)),
                    page_info_next(mmu, unfixnum(current) * PAGE_SIZE),
@@ -457,9 +468,9 @@ static void dump_one_buddy_allocator(mmu_context_t *mmu, mezzano_boot_informatio
 }
 
 static void dump_buddy_allocator(mmu_context_t *mmu, mezzano_boot_information_t *boot_info, uint64_t nil) {
-    printf("32-bit buddy allocator:\n");
+    mprintf("32-bit buddy allocator:\n");
     dump_one_buddy_allocator(mmu, boot_info, nil, boot_info->buddy_bin_32, mezzano_n_buddy_bins_32_bit);
-    printf("64-bit buddy allocator:\n");
+    mprintf("64-bit buddy allocator:\n");
     dump_one_buddy_allocator(mmu, boot_info, nil, boot_info->buddy_bin_64, mezzano_n_buddy_bins_64_bit);
 }
 
@@ -548,7 +559,7 @@ static __noreturn void mezzano_loader_load(void *_loader) {
 
     dump_buddy_allocator(mmu, boot_info, loader->header.nil);
 
-    printf("mezzano: Starting system...\n");
+    mprintf("mezzano: Starting system...\n");
     mezzano_platform_finalize(boot_info);
     mezzano_arch_enter(transition,
                        mmu,
@@ -597,8 +608,8 @@ static bool mezzano_locate_image(const char *path, device_t **_device, fs_handle
             }
             snprintf(uuid, sizeof uuid, "%pu", header.uuid);
             if(strcasecmp(uuid, path_uuid) == 0) {
-                printf("mezzano: Detected UUID %pu on device %s.\n",
-                       header.uuid, device->name);
+                mprintf("mezzano: Detected UUID %pu on device %s.\n",
+                        header.uuid, device->name);
                 *_device = device;
                 *_fs_handle = NULL;
                 return true;
@@ -731,18 +742,12 @@ static bool config_cmd_mezzano(value_list_t *args) {
     video_env_init(current_environ, "video_mode", VIDEO_MODE_LFB, NULL);
 #endif
 
-    dprintf("mezzano: Loading image %02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x on device %s with protocol version %" PRIu8 ".%" PRIu8 "\n",
-        data->header.uuid[0], data->header.uuid[1], data->header.uuid[2],
-        data->header.uuid[3], data->header.uuid[4], data->header.uuid[5],
-        data->header.uuid[6], data->header.uuid[7], data->header.uuid[8],
-        data->header.uuid[9], data->header.uuid[10], data->header.uuid[11],
-        data->header.uuid[12], data->header.uuid[13], data->header.uuid[14],
-        data->header.uuid[15],
-        data->device_name,
-        data->header.protocol_major, data->header.protocol_minor);
+    mprintf("mezzano: Loading image %pu on device %s with protocol version %" PRIu8 ".%" PRIu8 "\n",
+            data->header.uuid, data->device_name,
+            data->header.protocol_major, data->header.protocol_minor);
 
-    dprintf("mezzano: Entry fref at %08" PRIx64 ". Initial process at %08" PRIx64 ".\n",
-        data->header.entry_fref, data->header.initial_process);
+    printf("mezzano: Entry fref at %08" PRIx64 ". Initial process at %08" PRIx64 ".\n",
+           data->header.entry_fref, data->header.initial_process);
 
     environ_set_loader(current_environ, &mezzano_loader_ops, data);
 
