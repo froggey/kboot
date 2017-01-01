@@ -684,9 +684,12 @@ static bool config_cmd_mezzano(value_list_t *args) {
     }
 
     data = malloc(sizeof *data);
+    memset(data, 0, sizeof *data);
     data->device_name = strdup(args->values[0].string);
     data->disk = device;
     data->fs_handle = fs_handle;
+
+    bool skip_memory_test = false;
 
     for(unsigned int i = 1; i < args->count; i += 1) {
         if(args->values[i].type != VALUE_TYPE_STRING) {
@@ -700,8 +703,28 @@ static bool config_cmd_mezzano(value_list_t *args) {
             data->video_console = true;
         } else if(strcmp(args->values[i].string, "no-detect") == 0) {
             data->no_detect = true;
+        } else if(strcmp(args->values[i].string, "i-promise-i-have-enough-memory") == 0) {
+            skip_memory_test = true;
         } else {
             config_error("config: mezzano: Unsupported option \"%s\"", args->values[i].string);
+            goto fail;
+        }
+    }
+
+    if(!skip_memory_test) {
+        // Walk the memory map, summing up regions that look allocatable.
+        phys_size_t total_memory = 0;
+        list_t mmap;
+        memory_snapshot(&mmap);
+        list_foreach(&mmap, iter) {
+            memory_range_t *range = list_entry(iter, memory_range_t, header);
+            total_memory += range->size;
+        }
+
+        // Use slightly less than 512MiB as this may not account for all memory.
+        if(total_memory < 500ull * 1024 * 1024) {
+            config_error("Insufficient memory. Detected %lluMiB, wanted at least 500MiB.\n",
+                         total_memory / 1024 / 1024);
             goto fail;
         }
     }
