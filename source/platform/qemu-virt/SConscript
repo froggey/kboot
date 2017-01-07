@@ -15,7 +15,7 @@
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #
 
-Import('config', 'defaults', 'env')
+Import('config', 'env')
 from util import FeatureSources
 
 sources = FeatureSources(config, [
@@ -31,6 +31,9 @@ sources = FeatureSources(config, [
 env['LDSCRIPT'] = env.LDScript('link.ld', 'link.ld.in')
 
 # Build the final executable.
-defaults.append(env['KBOOT'])
+env.Command(
+    env['OUTDIR'].File('kboot.elf'),
+    env['KBOOT'],
+    Action('$OBJCOPY -O binary --strip-all $SOURCE $TARGET', '$GENCOMSTR'))
 
 Return('sources')
