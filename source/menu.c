@@ -559,7 +559,7 @@ out_free_background:
 
 #else
 
-static inline bool display_gui_menu(unsigned timeout) { return false; }
+static inline bool display_gui_menu(const char *title, unsigned timeout) { return false; }
 
 #endif /* CONFIG_GUI_MENU */
 
