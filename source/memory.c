@@ -552,16 +552,15 @@ void memory_add(phys_ptr_t start, phys_size_t size, uint8_t type) {
 }
 
 /**
- * Mark all free areas in a range as internal.
+ * Mark all free areas in a range as the specified type.
  *
  * Searches through the given range and marks all currently free areas as
- * internal, so that they will not be allocated from by memory_alloc(). They
- * will be made free again when memory_finalize() is called.
+ * the specified type, so that they will not be allocated by memory_alloc().
  *
  * @param start         Start of the range.
  * @param size          Size of the range.
  */
-void memory_protect(phys_ptr_t start, phys_size_t size) {
+void memory_reserve(phys_ptr_t start, phys_size_t size, uint8_t type) {
     phys_ptr_t match_start, match_end, end;
     memory_range_t *range;
 
@@ -578,8 +577,22 @@ void memory_protect(phys_ptr_t start, phys_size_t size) {
         if (match_end <= match_start)
             continue;
 
-        memory_map_insert(&memory_ranges, match_start, match_end - match_start + 1, MEMORY_TYPE_INTERNAL);
+        memory_map_insert(&memory_ranges, match_start, match_end - match_start + 1, type);
     }
+}
+
+/**
+ * Mark all free areas in a range as internal.
+ *
+ * Searches through the given range and marks all currently free areas as
+ * internal, so that they will not be allocated from by memory_alloc(). They
+ * will be made free again when memory_finalize() is called.
+ *
+ * @param start         Start of the range.
+ * @param size          Size of the range.
+ */
+void memory_protect(phys_ptr_t start, phys_size_t size) {
+    memory_reserve(start, size, MEMORY_TYPE_INTERNAL);
 }
 
 /** Initialise the memory manager. */
