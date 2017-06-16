@@ -29,7 +29,21 @@
 #include <loader.h>
 #include <memory.h>
 
-/** Read in an MBR and convert endianness.
+/** Read a partition's start_lba field.
+ * @param partition     Partition to read from.
+ * @return              Decoded start_lba field. */
+static uint32_t partition_start_lba(mbr_partition_t *partition) {
+    return read_le32(&partition->start_lba);
+}
+
+/** Read a partition's num_sectors field.
+ * @param partition     Partition to read from.
+ * @return              Decoded num_sectors field. */
+static uint32_t partition_num_sectors(mbr_partition_t *partition) {
+    return read_le32(&partition->num_sectors);
+}
+
+/** Read in an MBR.
  * @param disk          Disk to read from.
  * @param mbr           MBR to read into.
  * @param lba           LBA to read from.
@@ -38,24 +52,21 @@ static bool read_mbr(disk_device_t *disk, mbr_t *mbr, uint32_t lba) {
     if (device_read(&disk->device, mbr, sizeof(*mbr), (uint64_t)lba * disk->block_size) != STATUS_SUCCESS)
         return false;
 
-    for (size_t i = 0; i < array_size(mbr->partitions); i++) {
-        mbr->partitions[i].start_lba = le32_to_cpu(mbr->partitions[i].start_lba);
-        mbr->partitions[i].num_sectors = le32_to_cpu(mbr->partitions[i].num_sectors);
-    }
-
     return true;
 }
 
 /** Check whether a partition is valid.
  * @param disk          Disk containing partition record.
  * @param partition     Partition record.
+ * @param offset        LBA offset, for extended partitions.
  * @return              Whether the partition is valid. */
-static bool is_valid(disk_device_t *disk, mbr_partition_t *partition) {
+static bool is_valid(disk_device_t *disk, mbr_partition_t *partition, uint32_t offset) {
+    uint32_t start_lba = partition_start_lba(partition) + offset;
     return (partition->type != 0)
         && (partition->bootable == 0 || partition->bootable == 0x80)
-        && (partition->start_lba != 0)
-        && (partition->start_lba < disk->blocks)
-        && (partition->start_lba + partition->num_sectors <= disk->blocks);
+        && (start_lba != 0)
+        && (start_lba < disk->blocks)
+        && (start_lba + partition_num_sectors(partition) <= disk->blocks);
 }
 
 /** Check whether a partition is an extended partition.
@@ -104,18 +115,16 @@ static void handle_extended(disk_device_t *disk, uint32_t lba, partition_iterate
         /* Calculate the location of the next EBR. The start sector is relative
          * to the start of the extended partition. Set to 0 if the second
          * partition doesn't refer to another EBR entry, causes the loop to end. */
-        next->start_lba += lba;
-        next_ebr = (is_valid(disk, next) && is_extended(next) && next->start_lba > curr_ebr)
-            ? next->start_lba
+        next_ebr = (is_valid(disk, next, lba) && is_extended(next) && partition_start_lba(next) + lba > curr_ebr)
+            ? partition_start_lba(next) + lba
             : 0;
 
         /* Get the partition. Here the start sector is relative to the current
          * EBR's location. */
-        partition->start_lba += curr_ebr;
-        if (!is_valid(disk, partition))
+        if (!is_valid(disk, partition, curr_ebr))
             continue;
 
-        cb(disk, i++, partition->start_lba, partition->num_sectors);
+        cb(disk, i++, partition_start_lba(partition) + curr_ebr, partition_num_sectors(partition));
     }
 }
 
@@ -143,7 +152,7 @@ static bool mbr_partition_iterate(disk_device_t *disk, partition_iterate_cb_t cb
     for (size_t i = 0; i < array_size(mbr->partitions); i++) {
         mbr_partition_t *partition = &mbr->partitions[i];
 
-        if (!is_valid(disk, partition))
+        if (!is_valid(disk, partition, 0))
             continue;
 
         if (is_extended(partition)) {
@@ -152,10 +161,10 @@ static bool mbr_partition_iterate(disk_device_t *disk, partition_iterate_cb_t cb
                 continue;
             }
 
-            handle_extended(disk, partition->start_lba, cb);
+            handle_extended(disk, partition_start_lba(partition), cb);
             seen_extended = true;
         } else {
-            cb(disk, i, partition->start_lba, partition->num_sectors);
+            cb(disk, i, partition_start_lba(partition), partition_num_sectors(partition));
         }
     }
 

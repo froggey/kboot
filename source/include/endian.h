@@ -23,6 +23,7 @@
 #define __ENDIAN_H
 
 #include <types.h>
+#include <arch/loader.h>
 
 /** Swap byte order in a 16-bit value.
  * @param val           Value to swap order of.
@@ -94,5 +95,33 @@ static inline uint64_t byte_order_swap64(uint64_t val) {
 #else
 #   error "__BYTE_ORDER__ is not defined"
 #endif
+
+/** Read a little-endian uint16_t in an alignment-safe way. */
+static inline uint16_t read_le16(const void *ptr) {
+    /* Using volatile forces the compiler to perform byte accesses.
+     * Without it, it can reconstruct a full word load. */
+#ifdef ARCH_SUPPORTS_UNALIGNED_LOADS_AND_STORES
+    const uint8_t *bytes = (const uint8_t *)ptr;
+#else
+    const volatile uint8_t *bytes = (const volatile uint8_t *)ptr;
+#endif
+    return
+        ((uint16_t)bytes[0]) |
+        (((uint16_t)bytes[1]) << 8);
+}
+
+/** Read a little-endian uint32_t in an alignment-safe way. */
+static inline uint32_t read_le32(const void *ptr) {
+#ifdef ARCH_SUPPORTS_UNALIGNED_LOADS_AND_STORES
+    const uint8_t *bytes = (const uint8_t *)ptr;
+#else
+    const volatile uint8_t *bytes = (const volatile uint8_t *)ptr;
+#endif
+    return
+        ((uint32_t)bytes[0]) |
+        (((uint32_t)bytes[1]) << 8) |
+        (((uint32_t)bytes[2]) << 16) |
+        (((uint32_t)bytes[3]) << 24);
+}
 
 #endif /* __ENDIAN_H */

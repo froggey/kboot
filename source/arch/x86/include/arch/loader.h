@@ -24,6 +24,8 @@
 
 #include <types.h>
 
+#define ARCH_SUPPORTS_UNALIGNED_LOADS_AND_STORES 1
+
 /** Spin loop hint. */
 static inline void arch_pause(void) {
     __asm__ __volatile__("pause");
