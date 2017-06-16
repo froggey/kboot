@@ -17,8 +17,9 @@
   #define MZ_READ_LE16(p) *((const mz_uint16 *)(p))
   #define MZ_READ_LE32(p) *((const mz_uint32 *)(p))
 #else
-  #define MZ_READ_LE16(p) ((mz_uint32)(((const mz_uint8 *)(p))[0]) | ((mz_uint32)(((const mz_uint8 *)(p))[1]) << 8U))
-  #define MZ_READ_LE32(p) ((mz_uint32)(((const mz_uint8 *)(p))[0]) | ((mz_uint32)(((const mz_uint8 *)(p))[1]) << 8U) | ((mz_uint32)(((const mz_uint8 *)(p))[2]) << 16U) | ((mz_uint32)(((const mz_uint8 *)(p))[3]) << 24U))
+  /* GCC enthusiastically replaces these with u16/u32 loads when they're not volatile. */
+  #define MZ_READ_LE16(p) ((mz_uint32)(((const volatile mz_uint8 *)(p))[0]) | ((mz_uint32)(((const volatile mz_uint8 *)(p))[1]) << 8U))
+  #define MZ_READ_LE32(p) ((mz_uint32)(((const volatile mz_uint8 *)(p))[0]) | ((mz_uint32)(((const volatile mz_uint8 *)(p))[1]) << 8U) | ((mz_uint32)(((const volatile mz_uint8 *)(p))[2]) << 16U) | ((mz_uint32)(((const volatile mz_uint8 *)(p))[3]) << 24U))
 #endif
 
 #define TINFL_MEMCPY(d, s, l) memcpy(d, s, l)

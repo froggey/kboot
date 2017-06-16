@@ -154,7 +154,7 @@ static status_t fat_read(fs_handle_t *_handle, void *buf, size_t count, offset_t
         if (ret != STATUS_SUCCESS)
             return ret;
 
-        fat_entry = le32_to_cpu(fat_entry);
+        fat_entry = read_le32(&fat_entry);
         if (mount->fat_type == 12) {
             /* Handle non-byte-aligned entries. */
             if (current_physical & 1)
@@ -190,8 +190,8 @@ static status_t fat_open_entry(const fs_entry_t *_entry, fs_handle_t **_handle) 
     fat_handle_t *root = (fat_handle_t *)_entry->owner->mount->root;
     uint32_t cluster_high, cluster_low, cluster;
 
-    cluster_high = le16_to_cpu(state->entry.first_cluster_high);
-    cluster_low = le16_to_cpu(state->entry.first_cluster_low);
+    cluster_high = read_le16(&state->entry.first_cluster_high);
+    cluster_low = read_le16(&state->entry.first_cluster_low);
     cluster = (cluster_high << 16) | cluster_low;
 
     if (cluster == owner->cluster) {
@@ -206,7 +206,7 @@ static status_t fat_open_entry(const fs_entry_t *_entry, fs_handle_t **_handle) 
         fs_handle_init(
             &handle->handle, _entry->owner->mount,
             (state->entry.attributes & FAT_ATTRIBUTE_DIRECTORY) ? FILE_TYPE_DIR : FILE_TYPE_REGULAR,
-            le32_to_cpu(state->entry.file_size));
+            read_le32(&state->entry.file_size));
 
         handle->cluster = cluster;
 
@@ -277,11 +277,11 @@ static bool parse_long_name(fat_iterate_state_t *state) {
     state->lfn_seq--;
 
     for (size_t i = 0; i < 5; i++)
-        state->lfn_name[(state->lfn_seq * 13) + i] = le16_to_cpu(entry->name1[i]);
+        state->lfn_name[(state->lfn_seq * 13) + i] = read_le16(&entry->name1[i]);
     for (size_t i = 0; i < 6; i++)
-        state->lfn_name[(state->lfn_seq * 13) + 5 + i] = le16_to_cpu(entry->name2[i]);
+        state->lfn_name[(state->lfn_seq * 13) + 5 + i] = read_le16(&entry->name2[i]);
     for (size_t i = 0; i < 2; i++)
-        state->lfn_name[(state->lfn_seq * 13) + 11 + i] = le16_to_cpu(entry->name3[i]);
+        state->lfn_name[(state->lfn_seq * 13) + 11 + i] = read_le16(&entry->name3[i]);
 
     /* If this is the last entry, convert to UTF-8. */
     if (!state->lfn_seq) {
@@ -507,7 +507,7 @@ static status_t fat_mount(device_t *device, fs_mount_t **_mount) {
     if (!bpb.num_fats || (bpb.media < 0xf8 && bpb.media != 0xf0))
         goto err;
 
-    sector_size = le16_to_cpu(bpb.bytes_per_sector);
+    sector_size = read_le16(&bpb.bytes_per_sector);
     if (!is_pow2(sector_size) || sector_size < 512 || sector_size > 4096)
         goto err;
 
@@ -515,24 +515,24 @@ static status_t fat_mount(device_t *device, fs_mount_t **_mount) {
     if (!is_pow2(mount->cluster_size))
         goto err;
 
-    total_sectors = (bpb.total_sectors_16)
-        ? le16_to_cpu(bpb.total_sectors_16)
-        : le32_to_cpu(bpb.total_sectors_32);
-    reserved_sectors = le16_to_cpu(bpb.num_reserved_sectors);
+    total_sectors = read_le16(&bpb.total_sectors_16)
+        ? read_le16(&bpb.total_sectors_16)
+        : read_le32(&bpb.total_sectors_32);
+    reserved_sectors = read_le16(&bpb.num_reserved_sectors);
     if (!reserved_sectors)
         goto err;
 
     /* Calculate the sector offset and size of the FATs. */
     fat_start_sector = reserved_sectors;
-    fat_sectors = (bpb.sectors_per_fat_16)
-        ? le16_to_cpu(bpb.sectors_per_fat_16)
-        : le32_to_cpu(bpb.fat32.sectors_per_fat_32);
+    fat_sectors = read_le16(&bpb.sectors_per_fat_16)
+        ? read_le16(&bpb.sectors_per_fat_16)
+        : read_le32(&bpb.fat32.sectors_per_fat_32);
 
     /* Calculate number of root directory sectors. Each directory entry is 32
      * bytes. For FAT32 this will be 0 (num_root_entries == 0), as it does not
      * have a fixed root directory location. */
     root_start_sector = fat_start_sector + (fat_sectors * bpb.num_fats);
-    root_sectors = round_up(le16_to_cpu(bpb.num_root_entries) * 32, sector_size) / sector_size;
+    root_sectors = round_up(read_le16(&bpb.num_root_entries) * 32, sector_size) / sector_size;
 
     /* Calculate the sector offset and size of the data area. */
     data_start_sector = root_start_sector + root_sectors;
@@ -562,7 +562,7 @@ static status_t fat_mount(device_t *device, fs_mount_t **_mount) {
      * it to 0 which fat_read() takes to refer to the root directory. */
     root = malloc(sizeof(*root));
     fs_handle_init(&root->handle, &mount->mount, FILE_TYPE_DIR, root_sectors * sector_size);
-    root->cluster = (mount->fat_type == 32) ? le32_to_cpu(bpb.fat32.root_cluster) : 0;
+    root->cluster = (mount->fat_type == 32) ? read_le32(&bpb.fat32.root_cluster) : 0;
     mount->mount.root = &root->handle;
 
     /* Get the volume label, stored in the root directory. */
@@ -571,7 +571,7 @@ static status_t fat_mount(device_t *device, fs_mount_t **_mount) {
         goto err;
 
     /* Generate the UUID string from the serial number. */
-    serial = le32_to_cpu((mount->fat_type == 32) ? bpb.fat32.volume_serial : bpb.fat16.volume_serial);
+    serial = (mount->fat_type == 32) ? read_le32(&bpb.fat32.volume_serial) : read_le32(&bpb.fat16.volume_serial);
     mount->mount.uuid = malloc(10);
     snprintf(mount->mount.uuid, 10, "%04X-%04X", serial >> 16, serial & 0xffff);
 

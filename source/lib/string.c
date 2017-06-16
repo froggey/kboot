@@ -43,9 +43,15 @@
  */
 void *memcpy(void *__restrict dest, const void *__restrict src, size_t count) {
     const char *s = (const char *)src;
-    const unsigned long *ns;
     char *d = (char *)dest;
+
+#ifndef ARCH_SUPPORTS_UNALIGNED_LOADS_AND_STORES
+    // Check alignment congurence.
+    // Both pointers must have the same alignment.
+    if(((ptr_t)d & 15) == ((ptr_t)s & 15)) {
+#endif
     unsigned long *nd;
+    const unsigned long *ns;
 
     /* Align the destination. */
     while ((ptr_t)d & (sizeof(unsigned long) - 1)) {
@@ -77,6 +83,9 @@ void *memcpy(void *__restrict dest, const void *__restrict src, size_t count) {
         d = (char *)nd;
         s = (const char *)ns;
     }
+#ifndef ARCH_SUPPORTS_UNALIGNED_LOADS_AND_STORES
+    } // alignment congurence.
+#endif
 
     /* Write remaining bytes. */
     while (count--)
