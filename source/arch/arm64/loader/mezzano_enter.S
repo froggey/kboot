@@ -43,7 +43,7 @@ FUNCTION_START(mezzano_arch_enter_real)
     mrs     x9, sctlr_el1
     orr     x9, x9, #(1<<12) /* Enable icache */
     orr     x9, x9, #(1<<2)  /* Enable dcache/ucache */
-    msr     sctlr_el1, x9
+    //msr     sctlr_el1, x9
 
     /* Invalidate TLB */
     tlbi    vmalle1
@@ -52,7 +52,8 @@ FUNCTION_START(mezzano_arch_enter_real)
 
     /* Initialize Memory Attribute Indirection Register
      * Index 0 configured as normal cachable memory */
-    ldr     x9, =0xFF
+    //ldr     x9, =0xFF
+    ldr     x9, =0 // everything is device memory.
     msr     mair_el1, x9
 
     /* Initialize TCR_EL1
@@ -67,7 +68,8 @@ FUNCTION_START(mezzano_arch_enter_real)
     /* ORGN0, write-back + write-allocate */
     /* IRGN0, write-back + write-allocate */
     /* T0SZ, 48-bit */
-    ldr     x9, =((2<<30)|(3<<28)|(1<<26)|(1<<24)|(16<<16)|(0<<14)|(3<<12)|(1<<10)|(1<<8)|(16<<0))
+    //ldr     x9, =((2<<30)|(3<<28)|(1<<26)|(1<<24)|(16<<16)|(0<<14)|(3<<12)|(1<<10)|(1<<8)|(16<<0))
+    ldr     x9, =((2<<30)|(3<<28)|(0<<26)|(0<<24)|(16<<16)|(0<<14)|(3<<12)|(0<<10)|(0<<8)|(16<<0))
     msr     tcr_el1, x9
     isb
 

@@ -145,6 +145,8 @@ typedef struct mezzano_boot_information {
 
 /** Structure containing Mezzano image loader state. */
 typedef struct mezzano_loader {
+    mezzano_header_t header;
+
     device_t *disk;            /**< Image device. */
     fs_handle_t *fs_handle;    /**< Image file. */
     char *device_name;        /**< Image device name. */
@@ -152,8 +154,6 @@ typedef struct mezzano_loader {
     bool freestanding;
     bool video_console;
     bool no_detect;
-
-    mezzano_header_t header;
 } mezzano_loader_t;
 
 // FIXME: Duplicated in enter.S

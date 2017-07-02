@@ -32,33 +32,89 @@
 
 static void print_fdt(void) {
     /* look for a flattened device tree at the start of physical memory */
-    const void *fdt = (void *)0x40000000;
-    int err = fdt_check_header(fdt);
+    const void *fdt_address = (void *)0x40000000;
+    int err = fdt_check_header(fdt_address);
     if (err < 0) {
         dprintf("No device tree detected.\n");
         return;
     }
     dprintf("Device tree:\n");
-    /* walk the nodes, looking for 'memory' */
     int depth = 0;
     int offset = 0;
+    {
+        int prop_offset = fdt_first_property_offset(fdt_address, 0);
+        while(prop_offset >= 0) {
+            const struct fdt_property *prop = fdt_get_property_by_offset(fdt_address, prop_offset, NULL);
+            dprintf("  %s\n", fdt_string(fdt_address, fdt32_to_cpu(prop->nameoff)));
+            prop_offset = fdt_next_property_offset(fdt_address, prop_offset);
+        }
+    }
     for (;;) {
-        offset = fdt_next_node(fdt, offset, &depth);
+        offset = fdt_next_node(fdt_address, offset, &depth);
         if (offset < 0)
             break;
 
         /* get the name */
-        const char *name = fdt_get_name(fdt, offset, NULL);
+        const char *name = fdt_get_name(fdt_address, offset, NULL);
         if (!name)
             continue;
 
+        for(int i = 0; i < depth; i += 1) {
+            dprintf("  ");
+        }
+
         dprintf("  %s\n", name);
 
-        int prop_offset = fdt_first_property_offset(fdt, offset);
+        int prop_offset = fdt_first_property_offset(fdt_address, offset);
         while(prop_offset >= 0) {
-            const struct fdt_property *prop = fdt_get_property_by_offset(fdt, prop_offset, NULL);
-            dprintf("    %s\n", fdt_string(fdt, fdt32_to_cpu(prop->nameoff)));
-            prop_offset = fdt_next_property_offset(fdt, prop_offset);
+            int prop_len;
+            const struct fdt_property *prop = fdt_get_property_by_offset(fdt_address, prop_offset, &prop_len);
+            const char *name = fdt_string(fdt_address, fdt32_to_cpu(prop->nameoff));
+            for(int i = 0; i < depth; i += 1) {
+                dprintf("  ");
+            }
+            const char *data = prop->data;
+            if(strcmp(name, "compatible") == 0 ||
+               strcmp(name, "reset-names") == 0 ||
+               strcmp(name, "clock-names") == 0) {
+                const char *endp = data + prop_len;
+                dprintf("    %s = ", name);
+                bool first = true;
+                while(data < endp) {
+                    if(first) {
+                        first = false;
+                    } else {
+                        dprintf(" ");
+                    }
+                    dprintf("\"%s\"", data);
+                    data += strlen(data) + 1;
+                }
+                dprintf("\n");
+            } else if(strcmp(name, "status") == 0 ||
+                      strcmp(name, "stdout-path") == 0) {
+                dprintf("    %s = %s\n", name, data);
+            } else if(strcmp(name, "reg") == 0 ||
+                      strcmp(name, "interrupts") == 0 ||
+                      strcmp(name, "bus-width") == 0 ||
+                      strcmp(name, "resets") == 0 ||
+                      strcmp(name, "clocks") == 0 ||
+                      strcmp(name, "phandle") == 0 ||
+                      strcmp(name, "clock-frequency") == 0 ||
+                      strcmp(name, "reg-shift") == 0 ||
+                      strcmp(name, "reg-io-width") == 0 ||
+                      name[0] == '#') {
+                dprintf("    %s = <", name);
+                for(int i = 0; i < prop_len / 4; i += 1) {
+                    if(i != 0) {
+                        dprintf(" ");
+                    }
+                    dprintf("0x%x", fdt32_to_cpu(((const uint32_t *)data)[i]));
+                }
+                dprintf(">\n");
+            } else {
+                dprintf("    %s\n", name);
+            }
+            prop_offset = fdt_next_property_offset(fdt_address, prop_offset);
         }
     }
 }
