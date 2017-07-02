@@ -125,16 +125,31 @@ static void map_small_64(mmu_context_t *ctx, uint64_t virt, uint64_t phys) {
 
     /* Get the page directory entry number. */
     pde = (virt % X86_PDIR_RANGE_64) / X86_PTBL_RANGE_64;
+    pte = (virt % X86_PTBL_RANGE_64) / PAGE_SIZE;
+
     if (!(pdir[pde] & X86_PTE_PRESENT)) {
         addr = allocate_structure(ctx);
         pdir[pde] = addr | X86_PTE_PRESENT | X86_PTE_WRITE;
+    } else if (pdir[pde] & X86_PTE_LARGE) {
+        /* Large page. */
+        phys_ptr_t orig = pdir[pde] & X86_PTE_ADDR_MASK_64;
+        if ((orig + pte * PAGE_SIZE) == phys) {
+            /* New mapping matches existing mapping, leave the large page alone. */
+            return;
+        }
+        /* Doesn't match, break it into small pages. */
+        addr = allocate_structure(ctx);
+        pdir[pde] = addr | X86_PTE_PRESENT | X86_PTE_WRITE;
+        ptbl = (uint64_t *)phys_to_virt(addr);
+        for (phys_ptr_t i = 0; i < 512; i += 1) {
+            ptbl[i] = (orig + i * PAGE_SIZE) | X86_PTE_PRESENT | X86_PTE_WRITE;
+        }
     }
 
     /* Get the page table from the page directory. */
     ptbl = (uint64_t *)phys_to_virt((ptr_t)(pdir[pde] & X86_PTE_ADDR_MASK_64));
 
     /* Map the page. */
-    pte = (virt % X86_PTBL_RANGE_64) / PAGE_SIZE;
     ptbl[pte] = phys | X86_PTE_PRESENT | X86_PTE_WRITE;
 }
 
@@ -201,16 +216,31 @@ static void map_small_32(mmu_context_t *ctx, uint32_t virt, uint32_t phys) {
 
     /* Get the page directory entry number. */
     pde = virt / X86_PTBL_RANGE_32;
+    pte = (virt % X86_PTBL_RANGE_32) / PAGE_SIZE;
+
     if (!(pdir[pde] & X86_PTE_PRESENT)) {
         addr = allocate_structure(ctx);
         pdir[pde] = addr | X86_PTE_PRESENT | X86_PTE_WRITE;
+    } else if (pdir[pde] & X86_PTE_LARGE) {
+        /* Large page. */
+        phys_ptr_t orig = pdir[pde] & X86_PTE_ADDR_MASK_32;
+        if ((orig + pte * PAGE_SIZE) == phys) {
+            /* New mapping matches existing mapping, leave the large page alone. */
+            return;
+        }
+        /* Doesn't match, break it into small pages. */
+        addr = allocate_structure(ctx);
+        pdir[pde] = addr | X86_PTE_PRESENT | X86_PTE_WRITE;
+        ptbl = (uint32_t *)phys_to_virt(addr);
+        for (phys_ptr_t i = 0; i < 512; i += 1) {
+            ptbl[i] = (orig + i * PAGE_SIZE) | X86_PTE_PRESENT | X86_PTE_WRITE;
+        }
     }
 
     /* Get the page table from the page directory. */
     ptbl = (uint32_t *)phys_to_virt((ptr_t)(pdir[pde] & X86_PTE_ADDR_MASK_32));
 
     /* Map the page. */
-    pte = (virt % X86_PTBL_RANGE_32) / PAGE_SIZE;
     ptbl[pte] = phys | X86_PTE_PRESENT | X86_PTE_WRITE;
 }
 

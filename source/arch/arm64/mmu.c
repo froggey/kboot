@@ -120,16 +120,30 @@ static void map_small(mmu_context_t *ctx, uint64_t virt, uint64_t phys) {
 
     /* Get the page directory entry number. */
     pde = (virt % ARM64_TTL2_RANGE) / ARM64_TTL3_RANGE;
+    pte = (virt % ARM64_TTL3_RANGE) / PAGE_SIZE;
     if (!(ttl2[pde] & ARM64_TTE_PRESENT)) {
         addr = allocate_structure(ctx);
         ttl2[pde] = addr | ARM64_TTE_PRESENT | ARM64_TTE_TABLE;
+    } else if (!(ttl2[pde] & ARM64_TTE_TABLE)) {
+        /* Large page. */
+        phys_ptr_t orig = ttl2[pde] & ARM64_TTE_ADDR_MASK;
+        if ((orig + pte * PAGE_SIZE) == phys) {
+            /* New mapping matches existing mapping, leave the large page alone. */
+            return;
+        }
+        /* Doesn't match, break it into small pages. */
+        addr = allocate_structure(ctx);
+        ttl2[pde] = addr | ARM64_TTE_PRESENT | ARM64_TTE_TABLE;
+        ttl3 = (uint64_t *)phys_to_virt(addr);
+        for (phys_ptr_t i = 0; i < 512; i += 1) {
+            ttl3[i] = (orig + i * PAGE_SIZE) | ARM64_TTE_PRESENT | ARM64_TTE_PAGE | ARM64_TTE_AF | ARM64_TTE_SH_INNER_SHAREABLE | ARM64_TTE_AP_P_RW_U_NA; // TODO: Cache attributes.
+        }
     }
 
     /* Get the page table from the page directory. */
     ttl3 = (uint64_t *)phys_to_virt((ptr_t)(ttl2[pde] & ARM64_TTE_ADDR_MASK));
 
     /* Map the page. */
-    pte = (virt % ARM64_TTL3_RANGE) / PAGE_SIZE;
     ttl3[pte] = phys | ARM64_TTE_PRESENT | ARM64_TTE_PAGE | ARM64_TTE_AF | ARM64_TTE_SH_INNER_SHAREABLE | ARM64_TTE_AP_P_RW_U_NA; // TODO: Cache attributes.
 }
 
