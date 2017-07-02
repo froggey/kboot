@@ -483,11 +483,11 @@ static __noreturn void mezzano_loader_load(void *_loader) {
     // Allocate the boot info page.
     phys_ptr_t boot_info_page;
     void *boot_info_page_virt = memory_alloc(PAGE_SIZE, // size
-                         0x1000, // alignment
-                         0x100000, 0, // min/max address
-                         MEMORY_TYPE_ALLOCATED, // type
-                         0, // flags
-                         &boot_info_page);
+                                             0x1000, // alignment
+                                             0x100000, 0, // min/max address
+                                             MEMORY_TYPE_ALLOCATED, // type
+                                             0, // flags
+                                             &boot_info_page);
     mezzano_boot_information_t *boot_info = boot_info_page_virt;
     memset(boot_info, 0, PAGE_SIZE);
 
@@ -540,6 +540,8 @@ static __noreturn void mezzano_loader_load(void *_loader) {
     /* Reclaim all memory used internally. */
     list_t kboot_memory_map;
     memory_finalize(&kboot_memory_map);
+    dprintf("mezzano: final physical memory map:\n");
+    memory_map_dump(&kboot_memory_map);
 
     // For each free kboot memory region, add pages to the buddy allocator.
     // Also avoid any memory below 1MB, it's weird.
@@ -559,7 +561,11 @@ static __noreturn void mezzano_loader_load(void *_loader) {
 
     dump_buddy_allocator(mmu, boot_info, loader->header.nil);
 
-    mprintf("mezzano: Starting system...\n");
+    uint64_t entry_point, tsp;
+    mmu_memcpy_from(mmu, &entry_point, loader->header.entry_fref + 15, sizeof entry_point);
+    mmu_memcpy_from(mmu, &tsp, loader->header.initial_process + 31, sizeof tsp);
+
+    mprintf("mezzano: Starting system. Entry point is %08" PRIx64 "  sp is %08" PRIx64 "  info is %08" PRIx64 "\n", entry_point, tsp, mezzano_physical_map_address + boot_info_page);
     mezzano_platform_finalize(boot_info);
     mezzano_arch_enter(transition,
                        mmu,
@@ -769,8 +775,8 @@ static bool config_cmd_mezzano(value_list_t *args) {
             data->header.uuid, data->device_name,
             data->header.protocol_major, data->header.protocol_minor);
 
-    printf("mezzano: Entry fref at %08" PRIx64 ". Initial process at %08" PRIx64 ".\n",
-           data->header.entry_fref, data->header.initial_process);
+    mprintf("mezzano: Entry fref at %08" PRIx64 ". Initial process at %08" PRIx64 ".\n",
+            data->header.entry_fref, data->header.initial_process);
 
     environ_set_loader(current_environ, &mezzano_loader_ops, data);
 

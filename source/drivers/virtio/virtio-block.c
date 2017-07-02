@@ -185,7 +185,7 @@ static void virtio_block_disk_identify(disk_device_t *_disk, device_identify_t t
 
 static bool virtio_block_disk_is_boot_partition(disk_device_t *disk, uint8_t id, uint64_t lba) {
     /* Close enough. */
-    return id == 0;
+    return id == 1;
 }
 
 /** Operations for a virtio-block disk device. */
