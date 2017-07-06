@@ -278,8 +278,11 @@ static void mmu_map_32(mmu_context_t *ctx, uint32_t virt, uint32_t phys, uint32_
  * @param virt          Virtual address to map.
  * @param phys          Physical address to map to.
  * @param size          Size of the mapping to create.
+ * @param cache_type    Currently ignored.
  * @return              Whether the supplied addresses were valid. */
-bool mmu_map(mmu_context_t *ctx, load_ptr_t virt, phys_ptr_t phys, load_size_t size) {
+bool mmu_map(mmu_context_t *ctx, load_ptr_t virt, phys_ptr_t phys, load_size_t size, int cache_type) {
+    (void)cache_type;
+
     assert(!(virt % PAGE_SIZE));
     assert(!(phys % PAGE_SIZE));
     assert(!(size % PAGE_SIZE));

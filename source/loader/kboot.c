@@ -168,7 +168,7 @@ kboot_vaddr_t kboot_alloc_virtual(kboot_loader_t *loader, kboot_paddr_t phys, kb
 
     if (phys != ~(kboot_paddr_t)0) {
         /* Architecture code does extra validation. */
-        if (!mmu_map(loader->mmu, addr, phys, size))
+        if (!mmu_map(loader->mmu, addr, phys, size, MMU_CACHE_NORMAL))
             boot_error("Invalid virtual mapping (physical 0x%" PRIx64 ")", phys);
     }
 
@@ -189,7 +189,7 @@ void kboot_map_virtual(kboot_loader_t *loader, kboot_vaddr_t addr, kboot_paddr_t
         boot_error("Mapping 0x%" PRIxLOAD " conflicts with another", addr);
 
     if (phys != ~(kboot_paddr_t)0) {
-        if (!mmu_map(loader->mmu, addr, phys, size))
+        if (!mmu_map(loader->mmu, addr, phys, size, MMU_CACHE_NORMAL))
             boot_error("Invalid virtual mapping (virtual 0x%" PRIx64 ")", addr);
     }
 
@@ -341,8 +341,8 @@ static void setup_trampoline(kboot_loader_t *loader) {
     /* Create an MMU context which maps the loader and the trampoline page. */
     loader->trampoline_mmu = mmu_context_create(loader->mode, MEMORY_TYPE_INTERNAL);
     loader_phys = virt_to_phys(loader_start);
-    mmu_map(loader->trampoline_mmu, loader_start, loader_phys, loader_size);
-    mmu_map(loader->trampoline_mmu, loader->trampoline_virt, loader->trampoline_phys, PAGE_SIZE);
+    mmu_map(loader->trampoline_mmu, loader_start, loader_phys, loader_size, MMU_CACHE_NORMAL);
+    mmu_map(loader->trampoline_mmu, loader->trampoline_virt, loader->trampoline_phys, PAGE_SIZE, MMU_CACHE_NORMAL);
 
     dprintf(
         "kboot: trampoline at physical 0x%" PRIxPHYS ", virtual 0x%" PRIxLOAD "\n",

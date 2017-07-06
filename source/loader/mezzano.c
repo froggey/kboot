@@ -102,7 +102,7 @@ static void mezzano_insert_into_memory_map(mezzano_boot_information_t *boot_info
     crunch_memory_map(boot_info);
 }
 
-void mezzano_add_physical_memory_range(mmu_context_t *mmu, mezzano_boot_information_t *boot_info, phys_ptr_t orig_start, phys_ptr_t orig_end) {
+void mezzano_add_physical_memory_range(mmu_context_t *mmu, mezzano_boot_information_t *boot_info, phys_ptr_t orig_start, phys_ptr_t orig_end, int cache_type) {
     // Map liberally, it doesn't matter if free regions overlap with allocated
     // regions. It's more important that the entire region is mapped.
     phys_ptr_t start = round_down(orig_start, PAGE_SIZE);
@@ -128,7 +128,7 @@ void mezzano_add_physical_memory_range(mmu_context_t *mmu, mezzano_boot_informat
             orig_start, orig_end, start, end);
 
     // Map the memory into the physical map region.
-    mmu_map(mmu, mezzano_physical_map_address + start, start, end - start);
+    mmu_map(mmu, mezzano_physical_map_address + start, start, end - start, cache_type);
 
     // Carefully insert it into the memory map, maintaining the sortedness.
     mezzano_insert_into_memory_map(boot_info, start, end);
@@ -159,7 +159,7 @@ static void mezzano_finalize_memory_map(mmu_context_t *mmu, mezzano_boot_informa
                       MEMORY_TYPE_ALLOCATED, // type
                       0, // flags
                       &phys_info_addr);
-        mmu_map(mmu, info_start, phys_info_addr, info_end - info_start);
+        mmu_map(mmu, info_start, phys_info_addr, info_end - info_start, MMU_CACHE_NORMAL);
         memset(virt, 0, info_end - info_start);
     }
 }
@@ -380,7 +380,7 @@ static void load_page(mezzano_loader_t *loader, mmu_context_t *mmu, uint64_t inf
                                          0, // flags
                                          &phys_addr);
     // Map...
-    mmu_map(mmu, virtual, phys_addr, PAGE_SIZE);
+    mmu_map(mmu, virtual, phys_addr, PAGE_SIZE, MMU_CACHE_NORMAL);
     // Write block number to page info struct.
     set_page_info_extra(mmu, phys_addr, fixnum(info >> BLOCK_MAP_ID_SHIFT));
     if(info & BLOCK_MAP_WIRED) {
@@ -533,9 +533,9 @@ static __noreturn void mezzano_loader_load(void *_loader) {
     // The loader must be identity mapped, and mapped in the physical region.
     ptr_t loader_start = round_down((ptr_t)__start, PAGE_SIZE);
     ptr_t loader_size = round_up((ptr_t)__end - (ptr_t)__start, PAGE_SIZE);
-    mmu_map(transition, loader_start, loader_start, loader_size);
-    mmu_map(transition, mezzano_physical_map_address + loader_start, loader_start, loader_size);
-    mmu_map(mmu, mezzano_physical_map_address + loader_start, loader_start, loader_size);
+    mmu_map(transition, loader_start, loader_start, loader_size, MMU_CACHE_NORMAL);
+    mmu_map(transition, mezzano_physical_map_address + loader_start, loader_start, loader_size, MMU_CACHE_NORMAL);
+    mmu_map(mmu, mezzano_physical_map_address + loader_start, loader_start, loader_size, MMU_CACHE_NORMAL);
 
     /* Reclaim all memory used internally. */
     list_t kboot_memory_map;
