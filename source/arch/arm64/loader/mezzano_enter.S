@@ -45,6 +45,12 @@ FUNCTION_START(mezzano_arch_enter_real)
     orr     x9, x9, #(1<<2)  /* Enable dcache/ucache */
     msr     sctlr_el1, x9
 
+    /* Disable the MMU */
+    mrs     x9, sctlr_el1
+    and     x9, x9, #~0x1
+    msr     sctlr_el1, x9
+    isb
+
     /* Invalidate TLB */
     tlbi    vmalle1
     isb

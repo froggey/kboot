@@ -21,6 +21,7 @@
 
 #include <arch/page.h>
 #include <arm64/asm.h>
+#include <arm64/mmu.h>
 #include <platform/loader.h>
 
 .section .text.startup, "ax", @progbits
@@ -82,6 +83,48 @@ FUNCTION_START(_start)
     /* Load exception vector. */
     adr x1, exception_base
     msr vbar_el1, x1
+    isb
+
+    /* Caches on */
+    mrs     x9, sctlr_el1
+    orr     x9, x9, #(1<<12) /* Enable icache */
+    orr     x9, x9, #(1<<2)  /* Enable dcache/ucache */
+    msr     sctlr_el1, x9
+
+    /* Invalidate TLB */
+    tlbi    vmalle1
+    isb
+    dsb     sy
+
+    /* Initialize Memory Attribute Indirection Register
+     * Must match the ARM64_MAIR_foo_MEMORY defines in arm64/mmu.h
+     * Index 0 configured as normal cachable memory.
+     * Index 1 configured as normal write-through memory. (??)
+     * Index 2 configured as Device-nGnRnE memory.  */
+    ldr     x9, =0x00AAFF
+    msr     mair_el1, x9
+
+    /* Initialize TCR_EL1 */
+    ldr     x9, =((0<<37)| /* TBI0: top byte not ignored */\
+                  (5<<32)| /* IPS: 48-bit intermediate physical address. */\
+                  (1<<23)| /* EPD1: TTBR1 disabled */\
+                  (0<<14)| /* TG0: 4k graunle (different value to TG1) */\
+                  (3<<12)| /* SH0: inner shareable page tables */\
+                  (1<<10)| /* ORGN1: write back, write allocate */\
+                  (1<<8)|  /* IRGN1: write back, write allocate */\
+                  (16<<0)) /* T0SZ: 48-bit */
+    msr     tcr_el1, x9
+    isb
+
+    /* Write ttbr with phys addr of the transition translation tables */
+    ldr     x9, =identity_ttl0
+    msr     ttbr0_el1, x9
+    isb
+
+    /* Turn on the MMU */
+    mrs     x9, sctlr_el1
+    orr     x9, x9, #0x1
+    msr     sctlr_el1, x9
     isb
 
     /* Call main */
@@ -167,6 +210,43 @@ fiq_el0_32_handler:
 .org 0x780
 serror_el0_32_handler:
     b .
+
+.section .data, "aw", @progbits
+
+.p2align 12
+identity_ttl0:
+    .quad identity_ttl1 + (ARM64_TTE_PRESENT | ARM64_TTE_TABLE)
+    .fill 511, 8, 0
+
+identity_ttl1:
+    .quad (identity_ttl2 + 4096 * 0) + (ARM64_TTE_PRESENT | ARM64_TTE_TABLE)
+    .quad (identity_ttl2 + 4096 * 1) + (ARM64_TTE_PRESENT | ARM64_TTE_TABLE)
+    .quad (identity_ttl2 + 4096 * 2) + (ARM64_TTE_PRESENT | ARM64_TTE_TABLE)
+    .quad (identity_ttl2 + 4096 * 3) + (ARM64_TTE_PRESENT | ARM64_TTE_TABLE)
+    .fill 508, 8, 0
+
+identity_ttl2:
+    /* Identity map 0-1G as uncached memory using 2M pages. */
+    i = 0
+    .rept 512
+        .quad i | ARM64_TTE_PRESENT | ARM64_TTE_AF | ARM64_TTE_AP_P_RW_U_NA | ARM64_TTE_ATTR_INDEX(ARM64_MAIR_DEVICE_MEMORY)
+        i = i + 0x200000
+    .endr
+    /* Identity map 1G-2G as normal memory using 2M pages. */
+    .rept 512
+        .quad i | ARM64_TTE_PRESENT | ARM64_TTE_AF | ARM64_TTE_SH_INNER_SHAREABLE | ARM64_TTE_AP_P_RW_U_NA | ARM64_TTE_ATTR_INDEX(ARM64_MAIR_NORMAL_MEMORY)
+        i = i + 0x200000
+    .endr
+    /* Identity map 0-1G as uncached memory using 2M pages. */
+    .rept 512
+        .quad i | ARM64_TTE_PRESENT | ARM64_TTE_AF | ARM64_TTE_AP_P_RW_U_NA | ARM64_TTE_ATTR_INDEX(ARM64_MAIR_DEVICE_MEMORY)
+        i = i + 0x200000
+    .endr
+    /* Identity map 0-1G as uncached memory using 2M pages. */
+    .rept 512
+        .quad i | ARM64_TTE_PRESENT | ARM64_TTE_AF | ARM64_TTE_AP_P_RW_U_NA | ARM64_TTE_ATTR_INDEX(ARM64_MAIR_DEVICE_MEMORY)
+        i = i + 0x200000
+    .endr
 
 .section .bss, "aw", @nobits
 
