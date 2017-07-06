@@ -43,7 +43,7 @@ FUNCTION_START(mezzano_arch_enter_real)
     mrs     x9, sctlr_el1
     orr     x9, x9, #(1<<12) /* Enable icache */
     orr     x9, x9, #(1<<2)  /* Enable dcache/ucache */
-    //msr     sctlr_el1, x9
+    msr     sctlr_el1, x9
 
     /* Invalidate TLB */
     tlbi    vmalle1
@@ -51,25 +51,27 @@ FUNCTION_START(mezzano_arch_enter_real)
     dsb     sy
 
     /* Initialize Memory Attribute Indirection Register
-     * Index 0 configured as normal cachable memory */
-    //ldr     x9, =0xFF
-    ldr     x9, =0 // everything is device memory.
+     * Should match the MAIR_foo_MEMORY defines in mmu.c
+     * Index 0 configured as normal cachable memory.
+     * Index 1 configured as normal write-through memory. (??)
+     * Index 2 configured as Device-nGnRnE memory.  */
+    ldr     x9, =0x00AAFF
     msr     mair_el1, x9
 
-    /* Initialize TCR_EL1
-     * TODO: Set the IPS field properly, currently defaulting to 4GB. */
-    /* TG1, 4k granule (different to TG0!) */
-    /* SH1, inner shareable */
-    /* ORGN1, write-back + write-allocate */
-    /* IRGN1, write-back + write-allocate */
-    /* T1SZ, 48-bit */
-    /* TG0, 4k granule (different to TG1!) */
-    /* SH0, inner shareable */
-    /* ORGN0, write-back + write-allocate */
-    /* IRGN0, write-back + write-allocate */
-    /* T0SZ, 48-bit */
-    //ldr     x9, =((2<<30)|(3<<28)|(1<<26)|(1<<24)|(16<<16)|(0<<14)|(3<<12)|(1<<10)|(1<<8)|(16<<0))
-    ldr     x9, =((2<<30)|(3<<28)|(0<<26)|(0<<24)|(16<<16)|(0<<14)|(3<<12)|(0<<10)|(0<<8)|(16<<0))
+    /* Initialize TCR_EL1 */
+    ldr     x9, =((1<<38)| /* TBI1: top byte ignored */\
+                  (1<<37)| /* TBI0: top byte ignored */\
+                  (5<<32)| /* IPS: 48-bit intermediate physical address. */\
+                  (2<<30)| /* TG1: 4k granule (different value to TG0) */\
+                  (3<<28)| /* SH1: inner shareable page tables */\
+                  (1<<26)| /* ORGN1: write back, write allocate */\
+                  (1<<24)| /* IRGN1: write back, write allocate */\
+                  (16<<16)| /* T1SZ: 48-bit */\
+                  (0<<14)| /* TG0: 4k graunle (different value to TG1) */\
+                  (3<<12)| /* SH0: inner shareable page tables */\
+                  (1<<10)| /* ORGN1: write back, write allocate */\
+                  (1<<8)|  /* IRGN1: write back, write allocate */\
+                  (16<<0)) /* T0SZ: 48-bit */
     msr     tcr_el1, x9
     isb
 

@@ -27,7 +27,12 @@
 /** Type of an MMU context. */
 typedef struct mmu_context mmu_context_t;
 
-extern bool mmu_map(mmu_context_t *ctx, load_ptr_t virt, phys_ptr_t phys, load_size_t size);
+/** Memory types */
+#define MMU_CACHE_NORMAL 0
+#define MMU_CACHE_WRITETHROUGH 1
+#define MMU_CACHE_UNCACHED 2
+
+extern bool mmu_map(mmu_context_t *ctx, load_ptr_t virt, phys_ptr_t phys, load_size_t size, int cache_type);
 
 extern bool mmu_memset(mmu_context_t *ctx, load_ptr_t addr, uint8_t value, load_size_t size);
 extern bool mmu_memcpy_to(mmu_context_t *ctx, load_ptr_t dest, const void *src, load_size_t size);

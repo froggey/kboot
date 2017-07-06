@@ -40,6 +40,11 @@
 #define ARM64_TTE_SH_OUTER_SHAREABLE (2<<8)
 #define ARM64_TTE_SH_INNER_SHAREABLE (3<<8)
 
+#define ARM64_TTE_SHAREABILITY_MASK 0x0000000000000300ull
+
+#define ARM64_TTE_ATTR_INDEX(value) ((value)<<2ull)
+#define ARM64_TTE_ATTR_INDEX_MASK 0x000000000000001Cull
+
 /** Masks to get physical address from a page table entry. */
 #define ARM64_TTE_ADDR_MASK       0x00007ffffffff000ull
 

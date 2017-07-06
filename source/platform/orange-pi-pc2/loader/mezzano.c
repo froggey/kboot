@@ -37,11 +37,12 @@
 
 void mezzano_generate_memory_map(mmu_context_t *mmu, mezzano_boot_information_t *boot_info) {
     // 0-1GB contains all the useful MMIO addresses.
-    mezzano_add_physical_memory_range(mmu, boot_info, 0x00000000, 0x40000000);
+    mezzano_add_physical_memory_range(mmu, boot_info, 0x00000000, 0x40000000, MMU_CACHE_UNCACHED);
 
     // 1GB upwards is real memory.
+    // FIXME: The framebuffer is part of real memory and should probably be mapped writethrough.
     size_t total_memory = orange_pi_pc2_total_memory();
-    mezzano_add_physical_memory_range(mmu, boot_info, 0x40000000, 0x40000000 + total_memory);
+    mezzano_add_physical_memory_range(mmu, boot_info, 0x40000000, 0x40000000 + total_memory, MMU_CACHE_NORMAL);
 }
 
 void mezzano_set_video_mode(mezzano_boot_information_t *boot_info)

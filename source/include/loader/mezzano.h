@@ -177,6 +177,6 @@ extern void mezzano_platform_finalize(mezzano_boot_information_t *boot_info);
 extern void mezzano_generate_memory_map(mmu_context_t *mmu, mezzano_boot_information_t *boot_info);
 extern void mezzano_set_video_mode(mezzano_boot_information_t *boot_info);
 
-extern void mezzano_add_physical_memory_range(mmu_context_t *mmu, mezzano_boot_information_t *boot_info, phys_ptr_t orig_start, phys_ptr_t orig_end);
+extern void mezzano_add_physical_memory_range(mmu_context_t *mmu, mezzano_boot_information_t *boot_info, phys_ptr_t orig_start, phys_ptr_t orig_end, int cache_type);
 
 #endif
