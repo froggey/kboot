@@ -47,7 +47,7 @@ void mezzano_generate_memory_map(mmu_context_t *mmu, mezzano_boot_information_t 
     }
 
     for(efi_uintn_t i = 0; i < num_entries; i += 1) {
-        mezzano_add_physical_memory_range(mmu, boot_info, memory_map[i].physical_start, memory_map[i].physical_start + memory_map[i].num_pages * EFI_PAGE_SIZE);
+        mezzano_add_physical_memory_range(mmu, boot_info, memory_map[i].physical_start, memory_map[i].physical_start + memory_map[i].num_pages * EFI_PAGE_SIZE, MMU_CACHE_NORMAL);
     }
 }
 

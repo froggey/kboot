@@ -48,7 +48,7 @@ void mezzano_generate_memory_map(mmu_context_t *mmu, mezzano_boot_information_t 
     bios_memory_get_mmap(&buf, &num_entries, &entry_size);
     for(size_t i = 0; i < num_entries; i++) {
         e820_entry_t *entry = buf + (i * entry_size);
-        mezzano_add_physical_memory_range(mmu, boot_info, entry->start, entry->start + entry->length);
+        mezzano_add_physical_memory_range(mmu, boot_info, entry->start, entry->start + entry->length, MMU_CACHE_NORMAL);
     }
 }
 
