@@ -23,8 +23,6 @@
 #ifndef __ARM64_MMU_H
 #define __ARM64_MMU_H
 
-#include <loader.h>
-
 /** Definitions of paging structure bits. */
 #define ARM64_TTE_PRESENT         (1<<0)  /**< Page is present. */
 #define ARM64_TTE_TABLE           (1<<1)  /**< Page is a table. */
@@ -42,7 +40,7 @@
 
 #define ARM64_TTE_SHAREABILITY_MASK 0x0000000000000300ull
 
-#define ARM64_TTE_ATTR_INDEX(value) ((value)<<2ull)
+#define ARM64_TTE_ATTR_INDEX(value) ((value)<<2)
 #define ARM64_TTE_ATTR_INDEX_MASK 0x000000000000001Cull
 
 /** Masks to get physical address from a page table entry. */
@@ -52,6 +50,14 @@
 #define ARM64_TTL1_RANGE          0x8000000000ull
 #define ARM64_TTL2_RANGE          0x40000000
 #define ARM64_TTL3_RANGE          0x200000
+
+#define ARM64_MAIR_NORMAL_MEMORY 0
+#define ARM64_MAIR_WRITE_THROUGH_MEMORY 1
+#define ARM64_MAIR_DEVICE_MEMORY 2
+
+#ifndef __ASM__
+
+#include <loader.h>
 
 /** arm64 MMU context structure. */
 struct mmu_context {
@@ -78,5 +84,7 @@ static inline bool is_canonical_range(uint64_t start, uint64_t size) {
         && is_canonical_addr(end)
         && (start & (1ull << 48)) == (end & (1ull << 48));
 }
+
+#endif
 
 #endif /* __ARM64_MMU_H */

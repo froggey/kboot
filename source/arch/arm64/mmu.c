@@ -32,19 +32,15 @@
 #include <memory.h>
 #include <mmu.h>
 
-#define MAIR_NORMAL_MEMORY 0
-#define MAIR_WRITE_THROUGH_MEMORY 1
-#define MAIR_DEVICE_MEMORY 2
-
 static uint64_t cache_type_to_mair_index(int cache_type) {
     switch(cache_type) {
     case MMU_CACHE_NORMAL:
-        return MAIR_NORMAL_MEMORY;
+        return ARM64_MAIR_NORMAL_MEMORY;
     case MMU_CACHE_WRITETHROUGH:
-        return MAIR_WRITE_THROUGH_MEMORY;
+        return ARM64_MAIR_WRITE_THROUGH_MEMORY;
     case MMU_CACHE_UNCACHED: /* fallthrough */
     default:
-        return MAIR_DEVICE_MEMORY;
+        return ARM64_MAIR_DEVICE_MEMORY;
     }
 }
 
