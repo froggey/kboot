@@ -41,7 +41,7 @@
 
 static const char mezzano_magic[] = "\x00MezzanineImage\x00";
 static const uint16_t mezzano_protocol_major = 0;
-static const uint16_t mezzano_protocol_minor = 23;
+static const uint16_t mezzano_protocol_minor = 24;
 
 static void mprintf(const char *fmt, ...) {
     va_list args;
@@ -381,7 +381,7 @@ static void load_page(mezzano_loader_t *loader, mmu_context_t *mmu, uint64_t inf
                                          &phys_addr);
     // Map...
     // Writable only if writable and not doing dirty tracking.
-    mmu_map(mmu, virtual, phys_addr, PAGE_SIZE, MMU_CACHE_NORMAL, info & BLOCK_MAP_WRITABLE);
+    mmu_map(mmu, virtual, phys_addr, PAGE_SIZE, MMU_CACHE_NORMAL, (info & BLOCK_MAP_WRITABLE) && !(info & BLOCK_MAP_TRACK_DIRTY));
     // Write block number to page info struct.
     set_page_info_extra(mmu, phys_addr, fixnum(info >> BLOCK_MAP_ID_SHIFT));
     if(info & BLOCK_MAP_WIRED) {

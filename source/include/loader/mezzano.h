@@ -140,6 +140,7 @@ typedef struct mezzano_boot_information {
 #define BLOCK_MAP_WRITABLE 0x02
 #define BLOCK_MAP_ZERO_FILL 0x04
 #define BLOCK_MAP_WIRED 0x10
+#define BLOCK_MAP_TRACK_DIRTY 0x20
 #define BLOCK_MAP_FLAG_MASK 0xFF
 #define BLOCK_MAP_ID_SHIFT 8
 
