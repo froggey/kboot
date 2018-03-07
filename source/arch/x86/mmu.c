@@ -97,7 +97,7 @@ static uint64_t *get_pdir_64(mmu_context_t *ctx, uint64_t virt, bool alloc) {
  * @param ctx           Context to map in.
  * @param virt          Virtual address to map.
  * @param phys          Physical address to map to. */
-static void map_large_64(mmu_context_t *ctx, uint64_t virt, uint64_t phys) {
+static void map_large_64(mmu_context_t *ctx, uint64_t virt, uint64_t phys, bool writable) {
     uint64_t *pdir;
     unsigned pde;
 
@@ -106,14 +106,14 @@ static void map_large_64(mmu_context_t *ctx, uint64_t virt, uint64_t phys) {
 
     pdir = get_pdir_64(ctx, virt, true);
     pde = (virt % X86_PDIR_RANGE_64) / LARGE_PAGE_SIZE_64;
-    pdir[pde] = phys | X86_PTE_PRESENT | X86_PTE_WRITE | X86_PTE_LARGE;
+    pdir[pde] = phys | X86_PTE_PRESENT | (writable ? X86_PTE_WRITE : 0) | X86_PTE_LARGE;
 }
 
 /** Map a small page in a 64-bit context.
  * @param ctx           Context to map in.
  * @param virt          Virtual address to map.
  * @param phys          Physical address to map to. */
-static void map_small_64(mmu_context_t *ctx, uint64_t virt, uint64_t phys) {
+static void map_small_64(mmu_context_t *ctx, uint64_t virt, uint64_t phys, bool writable) {
     uint64_t *pdir, *ptbl;
     phys_ptr_t addr;
     unsigned pde, pte;
@@ -150,11 +150,11 @@ static void map_small_64(mmu_context_t *ctx, uint64_t virt, uint64_t phys) {
     ptbl = (uint64_t *)phys_to_virt((ptr_t)(pdir[pde] & X86_PTE_ADDR_MASK_64));
 
     /* Map the page. */
-    ptbl[pte] = phys | X86_PTE_PRESENT | X86_PTE_WRITE;
+    ptbl[pte] = phys | X86_PTE_PRESENT | (writable ? X86_PTE_WRITE : 0);
 }
 
 /** Create a mapping in a 64-bit MMU context. */
-static void mmu_map_64(mmu_context_t *ctx, uint64_t virt, uint64_t phys, uint64_t size) {
+static void mmu_map_64(mmu_context_t *ctx, uint64_t virt, uint64_t phys, uint64_t size, bool writable) {
     /* Map using large pages where possible (always supported on 64-bit). To do
      * this, align up to a 2MB boundary using small pages, map anything possible
      * with large pages, then do the rest using small pages. If virtual and
@@ -162,13 +162,13 @@ static void mmu_map_64(mmu_context_t *ctx, uint64_t virt, uint64_t phys, uint64_
      * we cannot map using large pages. */
     if ((virt % LARGE_PAGE_SIZE_64) == (phys % LARGE_PAGE_SIZE_64)) {
         while (virt % LARGE_PAGE_SIZE_64 && size) {
-            map_small_64(ctx, virt, phys);
+            map_small_64(ctx, virt, phys, writable);
             virt += PAGE_SIZE;
             phys += PAGE_SIZE;
             size -= PAGE_SIZE;
         }
         while (size / LARGE_PAGE_SIZE_64) {
-            map_large_64(ctx, virt, phys);
+            map_large_64(ctx, virt, phys, writable);
             virt += LARGE_PAGE_SIZE_64;
             phys += LARGE_PAGE_SIZE_64;
             size -= LARGE_PAGE_SIZE_64;
@@ -177,7 +177,7 @@ static void mmu_map_64(mmu_context_t *ctx, uint64_t virt, uint64_t phys, uint64_
 
     /* Map whatever remains. */
     while (size) {
-        map_small_64(ctx, virt, phys);
+        map_small_64(ctx, virt, phys, writable);
         virt += PAGE_SIZE;
         phys += PAGE_SIZE;
         size -= PAGE_SIZE;
@@ -188,7 +188,7 @@ static void mmu_map_64(mmu_context_t *ctx, uint64_t virt, uint64_t phys, uint64_
  * @param ctx           Context to map in.
  * @param virt          Virtual address to map.
  * @param phys          Physical address to map to. */
-static void map_large_32(mmu_context_t *ctx, uint32_t virt, uint32_t phys) {
+static void map_large_32(mmu_context_t *ctx, uint32_t virt, uint32_t phys, bool writable) {
     uint32_t *pdir;
     unsigned pde;
 
@@ -197,14 +197,14 @@ static void map_large_32(mmu_context_t *ctx, uint32_t virt, uint32_t phys) {
 
     pdir = (uint32_t *)phys_to_virt(ctx->cr3);
     pde = virt / X86_PTBL_RANGE_32;
-    pdir[pde] = phys | X86_PTE_PRESENT | X86_PTE_WRITE | X86_PTE_LARGE;
+    pdir[pde] = phys | X86_PTE_PRESENT | (writable ? X86_PTE_WRITE : 0) | X86_PTE_LARGE;
 }
 
 /** Map a small page in a 32-bit context.
  * @param ctx           Context to map in.
  * @param virt          Virtual address to map.
  * @param phys          Physical address to map to. */
-static void map_small_32(mmu_context_t *ctx, uint32_t virt, uint32_t phys) {
+static void map_small_32(mmu_context_t *ctx, uint32_t virt, uint32_t phys, bool writable) {
     uint32_t *pdir, *ptbl;
     phys_ptr_t addr;
     unsigned pde, pte;
@@ -241,22 +241,22 @@ static void map_small_32(mmu_context_t *ctx, uint32_t virt, uint32_t phys) {
     ptbl = (uint32_t *)phys_to_virt((ptr_t)(pdir[pde] & X86_PTE_ADDR_MASK_32));
 
     /* Map the page. */
-    ptbl[pte] = phys | X86_PTE_PRESENT | X86_PTE_WRITE;
+    ptbl[pte] = phys | X86_PTE_PRESENT | (writable ? X86_PTE_WRITE : 0);
 }
 
 /** Create a mapping in a 32-bit MMU context. */
-static void mmu_map_32(mmu_context_t *ctx, uint32_t virt, uint32_t phys, uint32_t size) {
+static void mmu_map_32(mmu_context_t *ctx, uint32_t virt, uint32_t phys, uint32_t size, bool writable) {
     /* Same as mmu_map_64(). */
     if (large_pages_supported) {
         if ((virt % LARGE_PAGE_SIZE_32) == (phys % LARGE_PAGE_SIZE_32)) {
             while (virt % LARGE_PAGE_SIZE_32 && size) {
-                map_small_32(ctx, virt, phys);
+                map_small_32(ctx, virt, phys, writable);
                 virt += PAGE_SIZE;
                 phys += PAGE_SIZE;
                 size -= PAGE_SIZE;
             }
             while (size / LARGE_PAGE_SIZE_32) {
-                map_large_32(ctx, virt, phys);
+                map_large_32(ctx, virt, phys, writable);
                 virt += LARGE_PAGE_SIZE_32;
                 phys += LARGE_PAGE_SIZE_32;
                 size -= LARGE_PAGE_SIZE_32;
@@ -266,7 +266,7 @@ static void mmu_map_32(mmu_context_t *ctx, uint32_t virt, uint32_t phys, uint32_
 
     /* Map whatever remains. */
     while (size) {
-        map_small_32(ctx, virt, phys);
+        map_small_32(ctx, virt, phys, writable);
         virt += PAGE_SIZE;
         phys += PAGE_SIZE;
         size -= PAGE_SIZE;
@@ -280,7 +280,7 @@ static void mmu_map_32(mmu_context_t *ctx, uint32_t virt, uint32_t phys, uint32_
  * @param size          Size of the mapping to create.
  * @param cache_type    Currently ignored.
  * @return              Whether the supplied addresses were valid. */
-bool mmu_map(mmu_context_t *ctx, load_ptr_t virt, phys_ptr_t phys, load_size_t size, int cache_type) {
+bool mmu_map(mmu_context_t *ctx, load_ptr_t virt, phys_ptr_t phys, load_size_t size, int cache_type, bool writable) {
     (void)cache_type;
 
     assert(!(virt % PAGE_SIZE));
@@ -291,14 +291,14 @@ bool mmu_map(mmu_context_t *ctx, load_ptr_t virt, phys_ptr_t phys, load_size_t s
         if (!is_canonical_range(virt, size))
             return false;
 
-        mmu_map_64(ctx, virt, phys, size);
+        mmu_map_64(ctx, virt, phys, size, writable);
     } else {
         assert(virt + size <= 0x100000000ull);
 
         if (phys >= 0x100000000ull || phys + size > 0x100000000ull)
             return false;
 
-        mmu_map_32(ctx, virt, phys, size);
+        mmu_map_32(ctx, virt, phys, size, writable);
     }
 
     return true;
