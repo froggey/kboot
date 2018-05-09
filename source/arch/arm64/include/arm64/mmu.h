@@ -33,6 +33,7 @@
 #define ARM64_TTE_AP_P_RW_U_RW    (1<<6)  /**< Protected RW, user RW. */
 #define ARM64_TTE_AP_P_RO_U_NA    (2<<6)  /**< Protected RO, user not accessible. */
 #define ARM64_TTE_AP_P_RO_U_RO    (3<<6)  /**< Protected RO, user RO. */
+#define ARM64_TTE_AP_MASK         (3<<6)
 
 #define ARM64_TTE_SH_NON_SHAREABLE   (0<<8)
 #define ARM64_TTE_SH_OUTER_SHAREABLE (2<<8)

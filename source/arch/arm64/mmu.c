@@ -104,7 +104,7 @@ static uint64_t *get_ttl2(mmu_context_t *ctx, uint64_t virt, bool alloc) {
  * @param ctx           Context to map in.
  * @param virt          Virtual address to map.
  * @param phys          Physical address to map to. */
-static void map_large(mmu_context_t *ctx, uint64_t virt, uint64_t phys, int cache_type) {
+static void map_large(mmu_context_t *ctx, uint64_t virt, uint64_t phys, int cache_type, bool writable) {
     uint64_t *ttl2;
     unsigned pde;
 
@@ -118,7 +118,7 @@ static void map_large(mmu_context_t *ctx, uint64_t virt, uint64_t phys, int cach
         ARM64_TTE_PRESENT |
         ARM64_TTE_AF |
         (cache_type == MMU_CACHE_UNCACHED ? ARM64_TTE_SH_NON_SHAREABLE : ARM64_TTE_SH_INNER_SHAREABLE) |
-        ARM64_TTE_AP_P_RW_U_NA |
+        (writable ? ARM64_TTE_AP_P_RW_U_NA : ARM64_TTE_AP_P_RO_U_NA) |
         ARM64_TTE_ATTR_INDEX(cache_type_to_mair_index(cache_type));
 }
 
@@ -126,7 +126,7 @@ static void map_large(mmu_context_t *ctx, uint64_t virt, uint64_t phys, int cach
  * @param ctx           Context to map in.
  * @param virt          Virtual address to map.
  * @param phys          Physical address to map to. */
-static void map_small(mmu_context_t *ctx, uint64_t virt, uint64_t phys, int cache_type) {
+static void map_small(mmu_context_t *ctx, uint64_t virt, uint64_t phys, int cache_type, bool writable) {
     uint64_t *ttl2, *ttl3;
     phys_ptr_t addr;
     unsigned pde, pte;
@@ -145,7 +145,7 @@ static void map_small(mmu_context_t *ctx, uint64_t virt, uint64_t phys, int cach
     } else if (!(ttl2[pde] & ARM64_TTE_TABLE)) {
         /* Large page. */
         phys_ptr_t orig = ttl2[pde] & ARM64_TTE_ADDR_MASK;
-        uint64_t orig_attr_index = ttl2[pde] & (ARM64_TTE_ATTR_INDEX_MASK|ARM64_TTE_SHAREABILITY_MASK);
+        uint64_t orig_attr_index = ttl2[pde] & (ARM64_TTE_ATTR_INDEX_MASK|ARM64_TTE_SHAREABILITY_MASK|ARM64_TTE_AP_MASK);
         if ((orig + pte * PAGE_SIZE) == phys) {
             /* New mapping matches existing mapping, leave the large page alone. */
             return;
@@ -155,7 +155,7 @@ static void map_small(mmu_context_t *ctx, uint64_t virt, uint64_t phys, int cach
         ttl2[pde] = addr | ARM64_TTE_PRESENT | ARM64_TTE_TABLE;
         ttl3 = (uint64_t *)phys_to_virt(addr);
         for (phys_ptr_t i = 0; i < 512; i += 1) {
-            ttl3[i] = (orig + i * PAGE_SIZE) | ARM64_TTE_PRESENT | ARM64_TTE_PAGE | ARM64_TTE_AF | ARM64_TTE_AP_P_RW_U_NA | orig_attr_index;
+            ttl3[i] = (orig + i * PAGE_SIZE) | ARM64_TTE_PRESENT | ARM64_TTE_PAGE | ARM64_TTE_AF | orig_attr_index;
         }
     }
 
@@ -169,7 +169,7 @@ static void map_small(mmu_context_t *ctx, uint64_t virt, uint64_t phys, int cach
         ARM64_TTE_PAGE |
         ARM64_TTE_AF |
         (cache_type == MMU_CACHE_UNCACHED ? ARM64_TTE_SH_NON_SHAREABLE : ARM64_TTE_SH_INNER_SHAREABLE) |
-        ARM64_TTE_AP_P_RW_U_NA |
+        (writable ? ARM64_TTE_AP_P_RW_U_NA : ARM64_TTE_AP_P_RO_U_NA) |
         ARM64_TTE_ATTR_INDEX(cache_type_to_mair_index(cache_type));
 }
 
@@ -180,7 +180,7 @@ static void map_small(mmu_context_t *ctx, uint64_t virt, uint64_t phys, int cach
  * @param size          Size of the mapping to create.
  * @param cache_type    Cache type to use for the memory.
  * @return              Whether the supplied addresses were valid. */
-bool mmu_map(mmu_context_t *ctx, load_ptr_t virt, phys_ptr_t phys, load_size_t size, int cache_type) {
+bool mmu_map(mmu_context_t *ctx, load_ptr_t virt, phys_ptr_t phys, load_size_t size, int cache_type, bool writable) {
     assert(!(virt % PAGE_SIZE));
     assert(!(phys % PAGE_SIZE));
     assert(!(size % PAGE_SIZE));
@@ -195,13 +195,13 @@ bool mmu_map(mmu_context_t *ctx, load_ptr_t virt, phys_ptr_t phys, load_size_t s
      * we cannot map using large pages. */
     if ((virt % LARGE_PAGE_SIZE) == (phys % LARGE_PAGE_SIZE)) {
         while (virt % LARGE_PAGE_SIZE && size) {
-            map_small(ctx, virt, phys, cache_type);
+            map_small(ctx, virt, phys, cache_type, writable);
             virt += PAGE_SIZE;
             phys += PAGE_SIZE;
             size -= PAGE_SIZE;
         }
         while (size / LARGE_PAGE_SIZE) {
-            map_large(ctx, virt, phys, cache_type);
+            map_large(ctx, virt, phys, cache_type, writable);
             virt += LARGE_PAGE_SIZE;
             phys += LARGE_PAGE_SIZE;
             size -= LARGE_PAGE_SIZE;
@@ -210,7 +210,7 @@ bool mmu_map(mmu_context_t *ctx, load_ptr_t virt, phys_ptr_t phys, load_size_t s
 
     /* Map whatever remains. */
     while (size) {
-        map_small(ctx, virt, phys, cache_type);
+        map_small(ctx, virt, phys, cache_type, writable);
         virt += PAGE_SIZE;
         phys += PAGE_SIZE;
         size -= PAGE_SIZE;
