@@ -102,7 +102,7 @@ static void mezzano_insert_into_memory_map(mezzano_boot_information_t *boot_info
     crunch_memory_map(boot_info);
 }
 
-void mezzano_add_physical_memory_range(mmu_context_t *mmu, mezzano_boot_information_t *boot_info, phys_ptr_t orig_start, phys_ptr_t orig_end, int cache_type) {
+void mezzano_add_physical_memory_range(mezzano_loader_t *loader, mmu_context_t *mmu, mezzano_boot_information_t *boot_info, phys_ptr_t orig_start, phys_ptr_t orig_end, int cache_type) {
     // Map liberally, it doesn't matter if free regions overlap with allocated
     // regions. It's more important that the entire region is mapped.
     phys_ptr_t start = round_down(orig_start, PAGE_SIZE);
@@ -124,8 +124,10 @@ void mezzano_add_physical_memory_range(mmu_context_t *mmu, mezzano_boot_informat
         return;
     }
 
-    mprintf("mezzano: Map physical memory region %016" PRIx64 "-%016" PRIx64 " %016" PRIx64 "-%016" PRIx64 "\n",
-            orig_start, orig_end, start, end);
+    if(loader->verbose) {
+        mprintf("mezzano: Map physical memory region %016" PRIx64 "-%016" PRIx64 " %016" PRIx64 "-%016" PRIx64 "\n",
+                orig_start, orig_end, start, end);
+    }
 
     // Map the memory into the physical map region.
     mmu_map(mmu, mezzano_physical_map_address + start, start, end - start, cache_type, true);
@@ -134,12 +136,14 @@ void mezzano_add_physical_memory_range(mmu_context_t *mmu, mezzano_boot_informat
     mezzano_insert_into_memory_map(boot_info, start, end);
 }
 
-static void mezzano_finalize_memory_map(mmu_context_t *mmu, mezzano_boot_information_t *boot_info) {
-    mprintf("mezzano: Final memory map:\n");
-    for(uint64_t i = 0; i < boot_info->n_memory_map_entries; i += 1) {
-        mprintf("  %016" PRIx64 "-%016" PRIx64 "\n",
-               boot_info->memory_map[i].start,
-               boot_info->memory_map[i].end);
+static void mezzano_finalize_memory_map(mezzano_loader_t *loader, mmu_context_t *mmu, mezzano_boot_information_t *boot_info) {
+    if(loader->verbose) {
+        mprintf("mezzano: Final memory map:\n");
+        for(uint64_t i = 0; i < boot_info->n_memory_map_entries; i += 1) {
+            mprintf("  %016" PRIx64 "-%016" PRIx64 "\n",
+                    boot_info->memory_map[i].start,
+                    boot_info->memory_map[i].end);
+        }
     }
 
     // Allocate the information structs for all the pages in the memory map.
@@ -150,7 +154,9 @@ static void mezzano_finalize_memory_map(mmu_context_t *mmu, mezzano_boot_informa
         phys_ptr_t info_start = round_down((mezzano_physical_info_address + (start / PAGE_SIZE) * sizeof(mezzano_page_info_t)), PAGE_SIZE);
         phys_ptr_t info_end = round_up((mezzano_physical_info_address + (end / PAGE_SIZE) * sizeof(mezzano_page_info_t)), PAGE_SIZE);
         phys_ptr_t phys_info_addr;
-        mprintf("mezzano: info range %016" PRIx64 "-%016" PRIx64 "\n", info_start, info_end);
+        if(loader->verbose) {
+            mprintf("mezzano: info range %016" PRIx64 "-%016" PRIx64 "\n", info_start, info_end);
+        }
         // FIXME/TODO: It's ok for the backing pages to be discontinuous.
         // Could use 2MB pages here as well.
         void *virt = memory_alloc(info_end - info_start, // size
@@ -343,6 +349,19 @@ static uint64_t read_block_map_level(mezzano_loader_t *loader, uint64_t level_di
     }
 
     if(level == 1) {
+        for(int i = 0; i < 512; i += 1) {
+            uint64_t entry = ((uint64_t *)disk_block)[i];
+            uint64_t id = entry >> BLOCK_MAP_ID_SHIFT;
+            if(id != 0 && (entry & BLOCK_MAP_PRESENT)) {
+                if(loader->freestanding) {
+                    loader->page_count += 1;
+                } else {
+                    if(entry & BLOCK_MAP_WIRED) {
+                        loader->page_count += 1;
+                    }
+                }
+            }
+        }
         return phys_addr + mezzano_physical_map_address;
     }
 
@@ -409,14 +428,18 @@ static void load_page(mezzano_loader_t *loader, mmu_context_t *mmu, uint64_t inf
             boot_error("Could not read block %" PRIu64 " for virtual address %" PRIx64 ": %pS", info, virtual, st);
         }
     }
+
+    loader->n_pages_loaded += 1;
+    if((loader->n_pages_loaded % 100) == 0) {
+        printf("%lli ", loader->n_pages_loaded);
+    }
 }
 
 static void mezzano_read_wired_pages(mezzano_loader_t *loader, mmu_context_t *mmu, mezzano_boot_information_t *boot_info) {
     // Traverse the block map looking for wired pages.
-    mprintf("Loading %s pages...\n", loader->freestanding ? "all" : "wired");
+    mprintf("Loading %lli %spages...\n", loader->page_count, loader->freestanding ? "" : "wired ");
     uint64_t *bml4 = (uint64_t *)(ptr_t)(boot_info->block_map_address - mezzano_physical_map_address);
     for(int i = 0; i < 512; i += 1) {
-        mprintf("%i ", i);
         if(!bml4[i]) {
             continue;
         }
@@ -505,8 +528,8 @@ static __noreturn void mezzano_loader_load(void *_loader) {
         boot_info->boot_options |= fixnum(BOOT_OPTION_NO_DETECT);
     }
 
-    mezzano_generate_memory_map(mmu, boot_info);
-    mezzano_finalize_memory_map(mmu, boot_info);
+    mezzano_generate_memory_map(loader, mmu, boot_info);
+    mezzano_finalize_memory_map(loader, mmu, boot_info);
 
     mezzano_read_block_map(loader, boot_info);
     mezzano_read_wired_pages(loader, mmu, boot_info);
@@ -541,8 +564,10 @@ static __noreturn void mezzano_loader_load(void *_loader) {
     /* Reclaim all memory used internally. */
     list_t kboot_memory_map;
     memory_finalize(&kboot_memory_map);
-    dprintf("mezzano: final physical memory map:\n");
-    memory_map_dump(&kboot_memory_map);
+    if(loader->verbose) {
+        dprintf("mezzano: final physical memory map:\n");
+        memory_map_dump(&kboot_memory_map);
+    }
 
     // For each free kboot memory region, add pages to the buddy allocator.
     // Also avoid any memory below 1MB, it's weird.
@@ -560,7 +585,9 @@ static __noreturn void mezzano_loader_load(void *_loader) {
         }
     }
 
-    dump_buddy_allocator(mmu, boot_info, loader->header.nil);
+    if(loader->verbose) {
+        dump_buddy_allocator(mmu, boot_info, loader->header.nil);
+    }
 
     uint64_t entry_point, tsp;
     mmu_memcpy_from(mmu, &entry_point, loader->header.entry_fref + 15, sizeof entry_point);
@@ -712,6 +739,8 @@ static bool config_cmd_mezzano(value_list_t *args) {
             data->no_detect = true;
         } else if(strcmp(args->values[i].string, "i-promise-i-have-enough-memory") == 0) {
             skip_memory_test = true;
+        } else if(strcmp(args->values[i].string, "verbose") == 0) {
+            data->verbose = true;
         } else {
             config_error("config: mezzano: Unsupported option \"%s\"", args->values[i].string);
             goto fail;
