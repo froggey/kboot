@@ -271,6 +271,16 @@ else:
     for (k, v) in gcc_flags.items():
         env[k] += v
 
+# Test if the compiler supports the -no-pie option.
+output = Popen([env['CC'], '-no-pie'], stdout=PIPE, stderr=PIPE).communicate()[0].strip().decode('utf-8')
+if output.find('unrecognized') >= 0 or output.find('unknown') >= 0:
+    env['NO_PIE'] = ''
+else:
+    output = Popen([env['CC'], '-dumpspecs'], stdout=PIPE, stderr=PIPE).communicate()[0].strip().decode('utf-8')
+    # Clang doesn't support dumpspecs.
+    if output.find('unsupported option') >= 0 or output.find('no-pie') >= 0:
+        env['NO_PIE'] = '-no-pie'
+
 # Add the compiler include directory for some standard headers.
 incdir = Popen([env['CC'], '-print-file-name=include'], stdout=PIPE).communicate()[0].strip()
 env['CCFLAGS'] += ['-isystem%s' % (incdir)]
