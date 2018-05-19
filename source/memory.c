@@ -44,7 +44,7 @@ typedef struct heap_chunk {
 /* Mezzano's EFI loader needs a larger heap.
  * EFI's memory_alloc mallocs metadata per-allocation and the mezzano loader
  * performs many individual page allocations */
-#  define HEAP_SIZE       (4*1024*1024)
+#  define HEAP_SIZE       (8*1024*1024)
 #else
 #  define HEAP_SIZE       (128*1024)
 #endif
