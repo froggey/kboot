@@ -155,6 +155,9 @@ typedef struct mezzano_loader {
     bool freestanding;
     bool video_console;
     bool no_detect;
+    uint64_t page_count;
+    uint64_t n_pages_loaded;
+    bool verbose;
 } mezzano_loader_t;
 
 // FIXME: Duplicated in enter.S
@@ -175,9 +178,9 @@ extern void __noreturn mezzano_arch_enter(mmu_context_t *transition_pml4, mmu_co
 
 extern void mezzano_platform_load(mezzano_boot_information_t *boot_info);
 extern void mezzano_platform_finalize(mezzano_boot_information_t *boot_info);
-extern void mezzano_generate_memory_map(mmu_context_t *mmu, mezzano_boot_information_t *boot_info);
+extern void mezzano_generate_memory_map(mezzano_loader_t *loader, mmu_context_t *mmu, mezzano_boot_information_t *boot_info);
 extern void mezzano_set_video_mode(mezzano_boot_information_t *boot_info);
 
-extern void mezzano_add_physical_memory_range(mmu_context_t *mmu, mezzano_boot_information_t *boot_info, phys_ptr_t orig_start, phys_ptr_t orig_end, int cache_type);
+extern void mezzano_add_physical_memory_range(mezzano_loader_t *loader, mmu_context_t *mmu, mezzano_boot_information_t *boot_info, phys_ptr_t orig_start, phys_ptr_t orig_end, int cache_type);
 
 #endif
