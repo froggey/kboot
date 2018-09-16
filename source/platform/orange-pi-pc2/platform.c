@@ -177,10 +177,6 @@ void arm64_unhandled_sync_exception(exception_regs_t *regs) {
 
 /** Main function of the orange-pi-pc2 platform. */
 void orange_pi_pc2_main(void *provided_fdt) {
-    for(int i = 0; i < 255; i++) {
-        write8((volatile uint8_t *)0x01C28000, i);
-    }
-
     fdt_address = provided_fdt;
 
     console_init();
