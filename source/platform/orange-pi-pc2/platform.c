@@ -27,6 +27,7 @@
 
 #include <drivers/console/fb.h>
 //#include <drivers/mmc/sunxi_mmc.h>
+#include <drivers/virtio/virtio.h>
 
 #include <console.h>
 #include <device.h>
@@ -364,6 +365,12 @@ static void simple_framebuffer_register(int node) {
     video_mode_register(mode, true);
 }
 
+static void virtio_mmio_register(int node) {
+    phys_ptr_t window_base, window_size;
+    platform_fdt_get_reg(node, 0, &window_base, &window_size);
+    virtio_mmio_detect((void *)window_base);
+}
+
 typedef void (*fdt_probe_fn_t)(int fdt_node);
 
 typedef struct fdt_device_driver {
@@ -373,6 +380,8 @@ typedef struct fdt_device_driver {
 
 static fdt_device_driver_t fdt_drivers[] = {
     { "simple-framebuffer", simple_framebuffer_register },
+    { "virtio,mmio", virtio_mmio_register },
+
     //{ "allwinner,sun50i-a64-mmc", sunxi_mmc_register },
 };
 
