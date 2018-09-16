@@ -250,6 +250,7 @@ identity_ttl2:
 
 .section .bss, "aw", @nobits
 
+.balign 16
 /** Stack. */
 .type loader_stack, @object
 loader_stack:
