@@ -24,11 +24,15 @@
 #include <console.h>
 #include <loader.h>
 #include <memory.h>
+#include <libfdt.h>
 
 #include <drivers/console/serial.h>
 #include <drivers/serial/ns16550.h>
+#include <drivers/serial/pl011.h>
 
-#define UART0_BASE 0x01C28000
+#include <orange-pi-pc2/orange-pi-pc2.h>
+
+#include <platform/fdt.h>
 
 /** Initialize the console. */
 void target_console_init(void) {
@@ -39,10 +43,38 @@ void target_console_init(void) {
     config.parity = SERIAL_DEFAULT_PARITY;
     config.stop_bits = SERIAL_DEFAULT_STOP_BITS;
 
-    serial_port_t *port = ns16550_register(UART0_BASE, 0, 115200);
+    int chosen = fdt_path_offset(fdt_address, "/chosen");
+    if(chosen < 0) {
+        return;
+    }
+    int len;
+    const char *stdout = fdt_getprop(fdt_address, chosen, "stdout-path", &len);
+    if(!stdout || !len) {
+        return;
+    }
+
+    const char *options_marker = strchr(stdout, ':');
+    if(options_marker) {
+        len = options_marker - stdout;
+    }
+
+    int con_dev = fdt_path_offset_namelen(fdt_address, stdout, len);
+    if(con_dev < 0) {
+        return;
+    }
+
+    serial_port_t *port = NULL;
+
+    if(!fdt_node_check_compatible(fdt_address, con_dev, "snps,dw-apb-uart")) {
+        phys_ptr_t base, size;
+        platform_fdt_get_reg(con_dev, 0, &base, &size);
+        port = ns16550_register(base, 0, 115200); // TODO: Figure out what this should be
+    } else if(!fdt_node_check_compatible(fdt_address, con_dev, "arm,pl011")) {
+        phys_ptr_t base, size;
+        platform_fdt_get_reg(con_dev, 0, &base, &size);
+        port = pl011_register(base, 0);
+    }
 
     serial_port_config(port, &config);
     console_set_debug(&port->console);
-
-    /* TODO: Find a framebuffer. There had better be a framebuffer. */
 }
