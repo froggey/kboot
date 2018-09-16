@@ -25,6 +25,8 @@ include = {
         'DRIVER_CONSOLE_SERIAL': True,
         'DRIVER_SERIAL_NS16550': True,
         'DRIVER_SERIAL_PL011': True,
+        'DRIVER_VIRTIO': True,
+        'DRIVER_VIRTIO_BLOCK': True,
         'TARGET_HAS_VIDEO': True,
         'DRIVER_CONSOLE_FB': True,
         'DRIVER_CONSOLE_SERIAL': True,
