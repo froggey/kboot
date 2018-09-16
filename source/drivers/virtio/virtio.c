@@ -24,8 +24,6 @@ static inline bool ispow2(unsigned int val)
 
 #define LOCAL_TRACE 0
 
-static struct virtio_device *devices;
-
 #if LOCAL_TRACE
 static void dump_mmio_config(const volatile struct virtio_mmio_config *mmio)
 {
@@ -53,68 +51,59 @@ void virtio_dump_desc(const struct vring_desc *desc)
     dprintf("\tnext  0x%hhx\n", desc->next);
 }
 
-int virtio_mmio_detect(void *ptr, unsigned int count)
+int virtio_mmio_detect(void *ptr)
 {
     static_assert(sizeof(struct virtio_mmio_config) == 0x100);
 
-    LTRACEF("ptr %p, count %u\n", ptr, count);
+    LTRACEF("ptr %p", ptr);
 
     assert(ptr);
-    assert(!devices);
 
-    /* allocate an array big enough to hold a list of devices */
-    devices = malloc(count * sizeof(struct virtio_device));
-    if (!devices)
+    volatile struct virtio_mmio_config *mmio = (struct virtio_mmio_config *)((uint8_t *)ptr);
+    struct virtio_device *dev = malloc(sizeof(struct virtio_device));
+    if(!dev) {
         return STATUS_NO_MEMORY;
-    memset(devices, 0, count * sizeof(struct virtio_device));
-
-    int found = 0;
-    for (unsigned int i = 0; i < count; i++) {
-        volatile struct virtio_mmio_config *mmio = (struct virtio_mmio_config *)((uint8_t *)ptr + i * 0x200);
-        struct virtio_device *dev = &devices[i];
-
-        dev->index = i;
-
-        LTRACEF("looking at magic 0x%x version 0x%x did 0x%x vid 0x%x\n",
-                mmio->magic, mmio->version, mmio->device_id, mmio->vendor_id);
-
-        if ((mmio->magic != VIRTIO_MMIO_MAGIC) ||
-            (mmio->device_id == VIRTIO_DEV_ID_INVALID))
-            continue;
-
-#if LOCAL_TRACE
-        dump_mmio_config(mmio);
-#endif
-
-        dev->mmio_config = mmio;
-        dev->config_ptr = (void *)mmio->config;
-
-        status_t status = STATUS_NOT_SUPPORTED;
-        switch(mmio->device_id) {
-#ifdef CONFIG_DRIVER_VIRTIO_BLOCK
-        case VIRTIO_DEV_ID_BLOCK:
-            status = virtio_block_init(dev, mmio->host_features);
-            break;
-#endif
-        default:
-            dprintf("Unrecognized VirtIO MMIO device id %u discovered at position %u\n",
-                    mmio->device_id, i);
-            break;
-        }
-
-        if(status == STATUS_SUCCESS) {
-            dev->valid = true;
-            found++;
-        } else if(status != STATUS_NOT_SUPPORTED) {
-                LTRACEF("Failed to initialize VirtIO MMIO device id %u at position %u (err = %d)\n",
-                        mmio->device_id, i, status);
-
-                // indicate to the device that something went fatally wrong on the driver side.
-                dev->mmio_config->status |= VIRTIO_STATUS_FAILED;
-        }
     }
 
-    return found;
+    LTRACEF("looking at magic 0x%x version 0x%x did 0x%x vid 0x%x\n",
+            mmio->magic, mmio->version, mmio->device_id, mmio->vendor_id);
+
+    if ((mmio->magic != VIRTIO_MMIO_MAGIC) ||
+        (mmio->device_id == VIRTIO_DEV_ID_INVALID)) {
+        return 0;
+    }
+
+#if LOCAL_TRACE
+    dump_mmio_config(mmio);
+#endif
+
+    dev->mmio_config = mmio;
+    dev->config_ptr = (void *)mmio->config;
+
+    status_t status = STATUS_NOT_SUPPORTED;
+    switch(mmio->device_id) {
+#ifdef CONFIG_DRIVER_VIRTIO_BLOCK
+    case VIRTIO_DEV_ID_BLOCK:
+        status = virtio_block_init(dev, mmio->host_features);
+        break;
+#endif
+    default:
+        dprintf("Unrecognized VirtIO MMIO device id %u discovered at position %p\n",
+                mmio->device_id, ptr);
+        break;
+    }
+
+    if(status == STATUS_SUCCESS) {
+        dev->valid = true;
+    } else if(status != STATUS_NOT_SUPPORTED) {
+        LTRACEF("Failed to initialize VirtIO MMIO device id %u at position %p (err = %d)\n",
+                mmio->device_id, ptr, status);
+
+        // indicate to the device that something went fatally wrong on the driver side.
+        dev->mmio_config->status |= VIRTIO_STATUS_FAILED;
+    }
+
+    return 1;
 }
 
 void virtio_free_desc(struct virtio_device *dev, unsigned int ring_index, uint16_t desc_index)
