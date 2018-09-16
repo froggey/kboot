@@ -798,7 +798,9 @@ static bool config_cmd_mezzano(value_list_t *args) {
     }
 
 #ifdef CONFIG_TARGET_HAS_VIDEO
-    video_env_init(current_environ, "video_mode", VIDEO_MODE_LFB, NULL);
+    if(current_video_mode) {
+        video_env_init(current_environ, "video_mode", VIDEO_MODE_LFB, NULL);
+    }
 #endif
 
     mprintf("mezzano: Loading image %pu on device %s with protocol version %" PRIu8 ".%" PRIu8 "\n",
