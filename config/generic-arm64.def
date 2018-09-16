@@ -16,6 +16,6 @@
 #
 
 config = {
-    'description': 'Orange Pi PC2',
-    'includes': ['arch/arm64', 'platform/orange-pi-pc2'],
+    'description': 'Generic FDT-based ARM64',
+    'includes': ['arch/arm64', 'platform/generic-arm64'],
 }

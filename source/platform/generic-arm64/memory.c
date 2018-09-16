@@ -16,10 +16,10 @@
 
 /**
  * @file
- * @brief               orange-pi-pc2 memory detection code.
+ * @brief               generic-arm64 memory detection code.
  */
 
-#include <orange-pi-pc2/orange-pi-pc2.h>
+#include <generic-arm64/generic-arm64.h>
 
 #include <lib/string.h>
 #include <lib/utility.h>

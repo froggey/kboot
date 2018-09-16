@@ -16,7 +16,7 @@
 
 /**
  * @file
- * @brief               orange-pi-pc2 startup code.
+ * @brief               generic-arm64 startup code.
  */
 
 #include <arch/page.h>
@@ -128,7 +128,7 @@ FUNCTION_START(_start)
     isb
 
     /* Call main */
-    bl orange_pi_pc2_main
+    bl generic_arm64_main
     b .
 FUNCTION_END(_start)
 

@@ -17,8 +17,8 @@
 
 include = {
     'config': {
-        'PLATFORM': 'orange-pi-pc2',
-        'PLATFORM_ORANGE_PI_PC2': True,
+        'PLATFORM': 'generic-arm64',
+        'PLATFORM_ARM64_GENERIC': True,
         'TARGET_HAS_FDT': True,
         'TARGET_HAS_DISK': True,
         'TARGET_HAS_UI': True,

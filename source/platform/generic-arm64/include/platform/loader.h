@@ -1,4 +1,5 @@
 /*
+ * Copyright (C) 2010-2014 Alex Smith
  * Copyright (C) 2016 Sylvia Harrington
  *
  * Permission to use, copy, modify, and/or distribute this software for any
@@ -16,21 +17,19 @@
 
 /**
  * @file
- * @brief               qemu-virt platform main definitions.
+ * @brief               generic-arm64 platform core definitions.
  */
 
-#ifndef __ORANGE_PI_PC2_ORANGE_PI_PC2_H
-#define __ORANGE_PI_PC2_ORANGE_PI_PC2_H
+#ifndef __PLATFORM_LOADER_H
+#define __PLATFORM_LOADER_H
 
-#include <types.h>
+/** Physical memoy starts here. */
+#define TARGET_PHYS_MIN         0x40000000
 
-extern void orange_pi_pc2_main(void *fdt);
+/** Load address of the boot loader. */
+#define LOADER_PHYS_OFFSET      0x80000
 
-extern uint64_t orange_pi_pc2_total_memory(void);
-extern const void *fdt_address;
+/** Load address of the boot loader. */
+#define LOADER_LOAD_ADDR        (TARGET_PHYS_MIN+LOADER_PHYS_OFFSET)
 
-extern void initrd_disk_init(void);
-extern phys_ptr_t initrd_address;
-extern phys_ptr_t initrd_size;
-
-#endif
+#endif /* __PLATFORM_LOADER_H */
