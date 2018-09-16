@@ -17,7 +17,7 @@
 
 /**
  * @file
- * @brief               orange-pi-pc2 platform core definitions.
+ * @brief               generic-arm64 platform core definitions.
  */
 
 #ifndef __PLATFORM_LOADER_H

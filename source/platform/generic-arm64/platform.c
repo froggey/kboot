@@ -16,10 +16,10 @@
 
 /**
  * @file
- * @brief               orange-pi-pc2 platform main functions.
+ * @brief               generic-arm64 platform main functions.
  */
 
-#include <orange-pi-pc2/orange-pi-pc2.h>
+#include <generic-arm64/generic-arm64.h>
 
 #include <platform/fdt.h>
 
@@ -175,8 +175,8 @@ void arm64_unhandled_sync_exception(exception_regs_t *regs) {
     internal_error("Unhandled exception");
 }
 
-/** Main function of the orange-pi-pc2 platform. */
-void orange_pi_pc2_main(void *provided_fdt) {
+/** Main function of the generic-arm64 platform. */
+void generic_arm64_main(void *provided_fdt) {
     fdt_address = provided_fdt;
 
     console_init();

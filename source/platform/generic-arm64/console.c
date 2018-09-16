@@ -17,7 +17,7 @@
 
 /**
  * @file
- * @brief               qemu-virt console functions.
+ * @brief               generic-arm64 console functions.
  */
 
 #include <assert.h>
@@ -30,7 +30,7 @@
 #include <drivers/serial/ns16550.h>
 #include <drivers/serial/pl011.h>
 
-#include <orange-pi-pc2/orange-pi-pc2.h>
+#include <generic-arm64/generic-arm64.h>
 
 #include <platform/fdt.h>
 

@@ -16,7 +16,7 @@
 
 /**
  * @file
- * @brief               qemu-virt platform Mezzano loader functions.
+ * @brief               generic-arm64 platform Mezzano loader functions.
  */
 
 #include <loader/mezzano.h>
@@ -24,7 +24,7 @@
 #include <lib/string.h>
 #include <lib/utility.h>
 
-#include <orange-pi-pc2/orange-pi-pc2.h>
+#include <generic-arm64/generic-arm64.h>
 
 #include <assert.h>
 #include <device.h>
@@ -36,6 +36,8 @@
 #include <video.h>
 
 void mezzano_generate_memory_map(mezzano_loader_t *loader, mmu_context_t *mmu, mezzano_boot_information_t *boot_info) {
+    // FIXME: Need to figure this out from the FDT.
+
     // 0-1GB contains all the useful MMIO addresses.
     mezzano_add_physical_memory_range(loader, mmu, boot_info, 0x00000000, 0x40000000, MMU_CACHE_UNCACHED);
 

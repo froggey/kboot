@@ -16,15 +16,14 @@
 
 /**
  * @file
- * @brief               qemu-virt platform main definitions.
+ * @brief               generic-arm64 platform main definitions.
  */
 
-#ifndef __ORANGE_PI_PC2_ORANGE_PI_PC2_H
-#define __ORANGE_PI_PC2_ORANGE_PI_PC2_H
+#pragma once
 
 #include <types.h>
 
-extern void orange_pi_pc2_main(void *fdt);
+extern void generic_arm64_main(void *fdt);
 
 extern uint64_t orange_pi_pc2_total_memory(void);
 extern const void *fdt_address;
@@ -32,5 +31,3 @@ extern const void *fdt_address;
 extern void initrd_disk_init(void);
 extern phys_ptr_t initrd_address;
 extern phys_ptr_t initrd_size;
-
-#endif

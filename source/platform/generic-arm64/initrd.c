@@ -19,7 +19,7 @@
  * @brief               Initrd virtual disk.
  */
 
-#include <orange-pi-pc2/orange-pi-pc2.h>
+#include <generic-arm64/generic-arm64.h>
 
 #include <lib/string.h>
 #include <lib/utility.h>
