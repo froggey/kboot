@@ -107,6 +107,7 @@ FUNCTION_START(mezzano_arch_enter_real)
     /* Invalidate TLB */
     tlbi    vmalle1
     isb
+    dsb     sy
 
     /* Enable the FP and SIMD registers and instructions in EL0 and EL1. */
     mrs     x9, cpacr_el1
