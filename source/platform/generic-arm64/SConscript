@@ -19,6 +19,7 @@ Import('config', 'env')
 from util import FeatureSources
 
 sources = FeatureSources(config, [
+    'loader/kboot.c',
     'loader/mezzano.c',
 
     'console.c',

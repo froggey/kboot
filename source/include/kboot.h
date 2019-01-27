@@ -62,6 +62,7 @@ typedef struct kboot_tag {
 #define KBOOT_TAG_SECTIONS          10      /**< ELF section information. */
 #define KBOOT_TAG_BIOS_E820         11      /**< BIOS address range descriptor (BIOS-specific). */
 #define KBOOT_TAG_EFI               12      /**< EFI firmware information. */
+#define KBOOT_TAG_FDT               13      /**< Flattened device tree pointer. */
 
 /** Tag containing core information for the kernel. */
 typedef struct kboot_tag_core {
@@ -341,6 +342,13 @@ typedef struct kboot_tag_efi {
 /** EFI firmware types. */
 #define KBOOT_EFI_32                0       /**< Firmware is 32-bit. */
 #define KBOOT_EFI_64                1       /**< Firmware is 64-bit. */
+
+/** Tag containing FDT pointer. */
+typedef struct kboot_tag_fdt {
+    kboot_tag_t header;                     /**< Tag header. */
+
+    kboot_paddr_t fdt;                      /**< Physical address of FDT. */
+} kboot_tag_fdt_t;
 
 /**
  * Image tags.
