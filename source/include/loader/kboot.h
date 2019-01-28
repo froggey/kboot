@@ -86,8 +86,8 @@ extern void *kboot_next_itag(kboot_loader_t *loader, void *data);
 
 extern void *kboot_alloc_tag(kboot_loader_t *loader, uint32_t type, size_t size);
 
-extern kboot_vaddr_t kboot_alloc_virtual(kboot_loader_t *loader, kboot_paddr_t phys, kboot_vaddr_t size);
-extern void kboot_map_virtual(kboot_loader_t *loader, kboot_vaddr_t addr, kboot_paddr_t phys, kboot_vaddr_t size);
+extern kboot_vaddr_t kboot_alloc_virtual(kboot_loader_t *loader, kboot_paddr_t phys, kboot_vaddr_t size, int cache_mode);
+extern void kboot_map_virtual(kboot_loader_t *loader, kboot_vaddr_t addr, kboot_paddr_t phys, kboot_vaddr_t size, int cache_mode);
 
 /** Iterate over all tags of a certain type in the image tag list. */
 #define kboot_itag_foreach(_loader, _type, _vtype, _vname) \
