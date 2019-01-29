@@ -123,7 +123,7 @@ void target_memory_probe(void) {
     }
 
     /* Protect the FDT. */
-    memory_reserve((phys_ptr_t)fdt_address, 0x10000, MEMORY_TYPE_RECLAIMABLE);
+    memory_reserve((phys_ptr_t)fdt_address, fdt_totalsize(fdt_address), MEMORY_TYPE_RECLAIMABLE);
 
     /* The initrd doesn't get passed on to the kernel. */
     if(initrd_start != 0 && initrd_end != 0) {
