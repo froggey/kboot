@@ -425,7 +425,7 @@ static void add_option_tags(kboot_loader_t *loader) {
             data_size = strlen(value->string) + 1;
             break;
         case KBOOT_OPTION_INTEGER:
-            assert(value->type == VALUE_TYPE_STRING);
+            assert(value->type == VALUE_TYPE_INTEGER);
 
             data = &value->integer;
             data_size = sizeof(value->integer);
