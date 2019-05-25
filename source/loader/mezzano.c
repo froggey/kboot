@@ -527,6 +527,9 @@ static __noreturn void mezzano_loader_load(void *_loader) {
     if(loader->no_detect) {
         boot_info->boot_options |= fixnum(BOOT_OPTION_NO_DETECT);
     }
+    if(loader->no_smp) {
+        boot_info->boot_options |= fixnum(BOOT_OPTION_NO_SMP);
+    }
 
     mezzano_generate_memory_map(loader, mmu, boot_info);
     mezzano_finalize_memory_map(loader, mmu, boot_info);
@@ -737,6 +740,8 @@ static bool config_cmd_mezzano(value_list_t *args) {
             data->video_console = true;
         } else if(strcmp(args->values[i].string, "no-detect") == 0) {
             data->no_detect = true;
+        } else if(strcmp(args->values[i].string, "no-smp") == 0) {
+            data->no_smp = true;
         } else if(strcmp(args->values[i].string, "i-promise-i-have-enough-memory") == 0) {
             skip_memory_test = true;
         } else if(strcmp(args->values[i].string, "verbose") == 0) {
