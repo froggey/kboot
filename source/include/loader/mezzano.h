@@ -135,6 +135,7 @@ typedef struct mezzano_boot_information {
 #define BOOT_OPTION_FREESTANDING    0x02
 #define BOOT_OPTION_VIDEO_CONSOLE   0x04
 #define BOOT_OPTION_NO_DETECT       0x08
+#define BOOT_OPTION_NO_SMP          0x10
 
 #define BLOCK_MAP_PRESENT 0x01
 #define BLOCK_MAP_WRITABLE 0x02
@@ -155,6 +156,7 @@ typedef struct mezzano_loader {
     bool freestanding;
     bool video_console;
     bool no_detect;
+    bool no_smp;
     uint64_t page_count;
     uint64_t n_pages_loaded;
     bool verbose;
