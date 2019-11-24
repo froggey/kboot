@@ -155,5 +155,6 @@ FUNCTION_START(mezzano_arch_enter_real)
     /* Call the entry function. Single argument call. */
     push    $0 /* Return address of zero. */
     movl    $1<<1, %ecx
-    jmp     *15(%r13)  /* +fref-entry-point+ */
+    leaq    23(%r13), %rax /* +fref-code+ */
+    jmp     *%rax
 FUNCTION_END(mezzano_arch_enter_real)

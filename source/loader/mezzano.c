@@ -41,7 +41,7 @@
 
 static const char mezzano_magic[] = "\x00MezzanineImage\x00";
 static const uint16_t mezzano_protocol_major = 0;
-static const uint16_t mezzano_protocol_minor = 24;
+static const uint16_t mezzano_protocol_minor = 25;
 
 static void mprintf(const char *fmt, ...) {
     va_list args;
