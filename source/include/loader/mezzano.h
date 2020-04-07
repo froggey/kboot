@@ -39,7 +39,9 @@ typedef struct mezzano_header {
     uint64_t initial_process;        /* +48 */
     uint64_t nil;                    /* +56 */
     uint8_t architecture;            /* +64 */
-    uint8_t _pad2[31];               /* +65 */
+    uint8_t _pad2[7];                /* +65 */
+    uint64_t initial_stack_pointer;  /* +72 */
+    uint8_t _pad3[16];               /* +80 */
     uint64_t bml4;                   /* +96 */
     uint64_t freelist_head;          /* +104 */
 } __packed mezzano_header_t;
@@ -176,7 +178,14 @@ static inline int64_t unfixnum(uint64_t fix) {
     return ((int64_t)fix) >> 1;
 }
 
-extern void __noreturn mezzano_arch_enter(mmu_context_t *transition_pml4, mmu_context_t *pml4, uint64_t entry_fref, uint64_t initial_process, uint64_t boot_information_location, uint64_t nil);
+extern void __noreturn mezzano_arch_enter(
+    mmu_context_t *transition_pml4,
+    mmu_context_t *pml4,
+    uint64_t entry_fref,
+    uint64_t initial_process,
+    uint64_t boot_information_location,
+    uint64_t nil,
+    uint64_t initial_stack_pointer);
 
 extern void mezzano_platform_load(mezzano_boot_information_t *boot_info);
 extern void mezzano_platform_finalize(mezzano_boot_information_t *boot_info);
