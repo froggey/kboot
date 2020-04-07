@@ -41,7 +41,7 @@
 
 static const char mezzano_magic[] = "\x00MezzanineImage\x00";
 static const uint16_t mezzano_protocol_major = 0;
-static const uint16_t mezzano_protocol_minor = 25;
+static const uint16_t mezzano_protocol_minor = 26;
 
 static void mprintf(const char *fmt, ...) {
     va_list args;
@@ -603,7 +603,8 @@ static __noreturn void mezzano_loader_load(void *_loader) {
                        loader->header.entry_fref,
                        loader->header.initial_process,
                        fixnum(mezzano_physical_map_address + boot_info_page),
-                       loader->header.nil);
+                       loader->header.nil,
+                       loader->header.initial_stack_pointer);
 }
 
 #if CONFIG_KBOOT_UI

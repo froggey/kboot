@@ -37,8 +37,12 @@
  * @param entry_fref         Value of the entry fref. (x4)
  * @param initial_process    Value of the initial process. (x5)
  * @param boot_information_location (fixnum) (x6)
- * @param nil                Value of NIL (x7) */
+ * @param nil                Value of NIL (x7)
+ * @param initial_stack_pointer Initial stack pointer to use (sp+0) */
 FUNCTION_START(mezzano_arch_enter_real)
+    /* Read the initial stack pointer */
+    ldr     x8, [sp]
+
     /* Caches on */
     mrs     x9, sctlr_el1
     orr     x9, x9, #(1<<12) /* Enable icache */
@@ -124,11 +128,10 @@ FUNCTION_START(mezzano_arch_enter_real)
     /* Use SP_EL0. */
     msr     spsel, #0
 
-    /* Load stack from the initial thread */
-    ldr     x9, [x28, #31]   /* +thread-stack-pointer+ */
-    add     x9, x9, #0xFFF
-    and     x9, x9, #~0xFFF
-    mov     sp, x9
+    /* Load the initial stack */
+    add     x8, x8, #0xFFF
+    and     x8, x8, #~0xFFF
+    mov     sp, x8
 
     /* Prepare for call */
     mov     x0, x6 /* First argument */

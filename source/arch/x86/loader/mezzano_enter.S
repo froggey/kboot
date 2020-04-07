@@ -36,7 +36,8 @@
  * @param pml4               Final PML4. (rsi or esp+12)
  * @param entry_fref         Value of the entry fref. (rdx or esp+20)
  * @param initial_process    Value of the initial process. (rcx or esp+28)
- * @param boot_information_location (fixnum) (r8 or esp+36) */
+ * @param boot_information_location (fixnum) (r8 or esp+36)
+ * @param initial_stack_pointer Initial stack pointer to use (r9 or esp+44) */
 FUNCTION_START(mezzano_arch_enter_real)
 #ifdef __LP64__
 .code64
@@ -103,6 +104,7 @@ FUNCTION_START(mezzano_arch_enter_real)
     movq    20(%esp), %r13   /* entry fref */
     movq    28(%esp), %r12   /* initial process */
     movq    36(%esp), %r8    /* boot info location */
+    movq    44(%esp), %r9    /* initial stack pointer */
 #endif
 
     /* Move to the pmap. */
@@ -122,8 +124,8 @@ FUNCTION_START(mezzano_arch_enter_real)
     movl    $X86_MSR_GS_BASE, %ecx
     wrmsr
 
-    /* Load stack from the initial process */
-    movq    31(%r12), %rsp   /* +thread-stack-pointer+ */
+    /* Load the initial stack */
+    movq    %r9, %rsp
     addq    $0xFFF, %rsp
     andq    $~0xFFF, %rsp
 
