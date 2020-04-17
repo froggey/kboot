@@ -386,7 +386,7 @@ static void mezzano_read_block_map(mezzano_loader_t *loader, mezzano_boot_inform
 }
 
 static void load_page(mezzano_loader_t *loader, mmu_context_t *mmu, uint64_t info, uint64_t virtual) {
-    if((info & BLOCK_MAP_PRESENT) == 0) {
+    if((info & BLOCK_MAP_PRESENT) == 0 || (info & BLOCK_MAP_TRANSIENT)) {
         return;
     }
 
