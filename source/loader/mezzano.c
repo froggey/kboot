@@ -644,9 +644,9 @@ static bool mezzano_locate_image(const char *path, device_t **_device, fs_handle
             if(memcmp(header.magic, mezzano_magic, 16) != 0) {
                 continue;
             }
-            snprintf(uuid, sizeof uuid, "%pu", header.uuid);
+            snprintf(uuid, sizeof uuid, "%pU", header.uuid);
             if(strcasecmp(uuid, path_uuid) == 0) {
-                mprintf("mezzano: Detected UUID %pu on device %s.\n",
+                mprintf("mezzano: Detected UUID %pU on device %s.\n",
                         header.uuid, device->name);
                 *_device = device;
                 *_fs_handle = NULL;
@@ -809,7 +809,7 @@ static bool config_cmd_mezzano(value_list_t *args) {
     }
 #endif
 
-    mprintf("mezzano: Loading image %pu on device %s with protocol version %" PRIu8 ".%" PRIu8 "\n",
+    mprintf("mezzano: Loading image %pU on device %s with protocol version %" PRIu8 ".%" PRIu8 "\n",
             data->header.uuid, data->device_name,
             data->header.protocol_major, data->header.protocol_minor);
 
