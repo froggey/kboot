@@ -385,19 +385,40 @@ static void mezzano_read_block_map(mezzano_loader_t *loader, mezzano_boot_inform
     boot_info->block_map_address = read_block_map_level(loader, loader->header.bml4, 4);
 }
 
-static void load_page(mezzano_loader_t *loader, mmu_context_t *mmu, uint64_t info, uint64_t virtual) {
+typedef struct page_chunk {
+    void *bootloader_virt;
+    phys_ptr_t phys_addr;
+    phys_size_t remaining;
+} page_chunk_t;
+
+// Allocate pages in 8MB chunks to reduce overall number of allocations, as large numbers
+// of allocations can upset some EFI firmwares.
+#define PAGE_CHUNK_SIZE (8 * 1024 * 1024)
+
+static void load_page(mezzano_loader_t *loader, mmu_context_t *mmu, uint64_t info, uint64_t virtual, page_chunk_t *chunk) {
     if((info & BLOCK_MAP_PRESENT) == 0 || (info & BLOCK_MAP_TRANSIENT)) {
         return;
     }
 
     // Alloc phys.
-    phys_ptr_t phys_addr;
-    void *bootloader_virt = memory_alloc(PAGE_SIZE, // size
-                                         0x1000, // alignment
-                                         0x100000, 0, // min/max address
-                                         MEMORY_TYPE_ALLOCATED, // type
-                                         0, // flags
-                                         &phys_addr);
+    if(chunk->remaining == 0) {
+        phys_size_t chunk_size = min(PAGE_CHUNK_SIZE, (loader->page_count - loader->n_pages_loaded) * PAGE_SIZE);
+        chunk->bootloader_virt = memory_alloc(chunk_size, // size
+                                              0x1000, // alignment
+                                              0x100000, 0, // min/max address
+                                              MEMORY_TYPE_ALLOCATED, // type
+                                              0, // flags
+                                              &chunk->phys_addr);
+        chunk->remaining = chunk_size;
+    }
+
+    static_assert((PAGE_CHUNK_SIZE % PAGE_SIZE) == 0);
+    phys_ptr_t phys_addr = chunk->phys_addr;
+    void *bootloader_virt = chunk->bootloader_virt;
+    chunk->bootloader_virt = (void*)((ptr_t)chunk->bootloader_virt + PAGE_SIZE);
+    chunk->phys_addr += PAGE_SIZE;
+    chunk->remaining -= PAGE_SIZE;
+
     // Map...
     // Writable only if writable and not doing dirty tracking.
     mmu_map(mmu, virtual, phys_addr, PAGE_SIZE, MMU_CACHE_NORMAL, (info & BLOCK_MAP_WRITABLE) && !(info & BLOCK_MAP_TRACK_DIRTY));
@@ -438,6 +459,7 @@ static void load_page(mezzano_loader_t *loader, mmu_context_t *mmu, uint64_t inf
 static void mezzano_read_wired_pages(mezzano_loader_t *loader, mmu_context_t *mmu, mezzano_boot_information_t *boot_info) {
     // Traverse the block map looking for wired pages.
     mprintf("Loading %lli %spages...\n", loader->page_count, loader->freestanding ? "" : "wired ");
+    page_chunk_t chunk = {};
     uint64_t *bml4 = (uint64_t *)(ptr_t)(boot_info->block_map_address - mezzano_physical_map_address);
     for(int i = 0; i < 512; i += 1) {
         if(!bml4[i]) {
@@ -464,7 +486,7 @@ static void mezzano_read_wired_pages(mezzano_loader_t *loader, mmu_context_t *mm
                         ((uint64_t)j << 30ull) |
                         ((uint64_t)k << 21ull) |
                         ((uint64_t)l << 12ull);
-                    load_page(loader, mmu, bml1[l], address);
+                    load_page(loader, mmu, bml1[l], address, &chunk);
                 }
             }
         }
