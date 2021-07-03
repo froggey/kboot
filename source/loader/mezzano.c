@@ -614,11 +614,10 @@ static __noreturn void mezzano_loader_load(void *_loader) {
         dump_buddy_allocator(mmu, boot_info, loader->header.nil);
     }
 
-    uint64_t entry_point, tsp;
+    uint64_t entry_point;
     mmu_memcpy_from(mmu, &entry_point, loader->header.entry_fref + 15, sizeof entry_point);
-    mmu_memcpy_from(mmu, &tsp, loader->header.initial_process + 31, sizeof tsp);
 
-    mprintf("mezzano: Starting system. Entry point is %08" PRIx64 "  sp is %08" PRIx64 "  info is %08" PRIx64 "\n", entry_point, tsp, mezzano_physical_map_address + boot_info_page);
+    mprintf("mezzano: Starting system. Entry point is %08" PRIx64 "  sp is %08" PRIx64 "  info is %08" PRIx64 "\n", entry_point, loader->header.initial_stack_pointer, mezzano_physical_map_address + boot_info_page);
     mezzano_platform_finalize(boot_info);
     mezzano_arch_enter(transition,
                        mmu,
