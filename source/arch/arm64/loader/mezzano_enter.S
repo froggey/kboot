@@ -173,7 +173,8 @@ FUNCTION_START(mezzano_arch_enter_real)
     /* Not x29(fp), holds return address */
     /* Not x30(lr), holds frame pointer */
 
-    /* Load the entry point and call the function */
-    ldr     x9, [x7, #15] /* +fref-entry-point+ */
+    /* Load the function out of the fref and call it */
+    ldr     x6, [x7, #15] /* +fref-function+ */
+    ldr     x9, [x6, #-1] /* +function-entry-point+ */
     br      x9
 FUNCTION_END(mezzano_arch_enter_real)
