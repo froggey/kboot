@@ -30,10 +30,6 @@
 
 #include <libfdt.h>
 
-uint64_t orange_pi_pc2_total_memory(void) {
-    return 1ul * 1024 * 1024 * 1024; /* 1GB */
-}
-
 static uint32_t read_prop_u32(const void *fdt, int offset, const char *prop_name, uint32_t dflt) {
     int lenp;
     const void *prop_ptr = fdt_getprop(fdt, offset, prop_name, &lenp);
