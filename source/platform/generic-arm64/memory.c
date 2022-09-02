@@ -53,11 +53,7 @@ static uint64_t read_cell_value(const void **ptr, uint32_t n_cells) {
     return value;
 }
 
-/** Detect physical memory. */
-void target_memory_probe(void) {
-    phys_ptr_t initrd_start = 0;
-    phys_ptr_t initrd_end = 0;
-
+void fdt_walk_memory_map(void (*fn)(void *, uint64_t, uint64_t), void *data) {
     /* Get the #address-cells and #size-cells fields. */
     uint32_t n_root_addr_cells = read_prop_u32(fdt_address, 0, "#address-cells", 1);
     uint32_t n_root_size_cells = read_prop_u32(fdt_address, 0, "#size-cells", 1);
@@ -89,10 +85,22 @@ void target_memory_probe(void) {
         for(uint32_t i = 0; i < n_entries; i += 1) {
             uint64_t address = read_cell_value(&prop_ptr, n_addr_cells);
             uint64_t size = read_cell_value(&prop_ptr, n_size_cells);
-            dprintf("Add memory range %llx - %llx\n", address, address + size);
-            memory_add(address, size, MEMORY_TYPE_FREE);
+            fn(data, address, size);
         }
     }
+}
+
+static void target_memory_probe_walk_memory_map(void *_data, uint64_t address, uint64_t size) {
+    dprintf("Add memory range %llx - %llx\n", address, address + size);
+    memory_add(address, size, MEMORY_TYPE_FREE);
+}
+
+/** Detect physical memory. */
+void target_memory_probe(void) {
+    phys_ptr_t initrd_start = 0;
+    phys_ptr_t initrd_end = 0;
+
+    fdt_walk_memory_map(target_memory_probe_walk_memory_map, NULL);
 
     /* Look for the initrd too. */
     int chosen_offset = fdt_path_offset(fdt_address, "/chosen");

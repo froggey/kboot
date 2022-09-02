@@ -26,6 +26,7 @@
 extern void generic_arm64_main(void *fdt);
 
 extern uint64_t orange_pi_pc2_total_memory(void);
+extern void fdt_walk_memory_map(void (*fn)(void *, uint64_t, uint64_t), void *data);
 extern const void *fdt_address;
 
 extern void initrd_disk_init(void);
