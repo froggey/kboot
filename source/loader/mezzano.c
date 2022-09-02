@@ -502,6 +502,9 @@ static void dump_one_buddy_allocator(mmu_context_t *mmu, mezzano_boot_informatio
             if(current == nil) {
                 break;
             }
+            if(current & 1) {
+                mprintf(" current %016x\n", current);
+            }
             assert((current & 1) == 0);
             mprintf("  %016" PRIx64 "-%016" PRIx64 " %016" PRIx64 " %016" PRIx64 "\n",
                    unfixnum(current) * PAGE_SIZE,
