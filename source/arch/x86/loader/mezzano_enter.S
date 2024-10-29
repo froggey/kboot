@@ -37,7 +37,8 @@
  * @param entry_fref         Value of the entry fref. (rdx or esp+20)
  * @param initial_process    Value of the initial process. (rcx or esp+28)
  * @param boot_information_location (fixnum) (r8 or esp+36)
- * @param initial_stack_pointer Initial stack pointer to use (r9 or esp+44) */
+ * @param nil                Value of NIL (r14 or esp+44)
+ * @param initial_stack_pointer Initial stack pointer to use (r9 or esp+52) */
 FUNCTION_START(mezzano_arch_enter_real)
 #ifdef __LP64__
 .code64
@@ -104,7 +105,8 @@ FUNCTION_START(mezzano_arch_enter_real)
     movq    20(%esp), %r13   /* entry fref */
     movq    28(%esp), %r12   /* initial process */
     movq    36(%esp), %r8    /* boot info location */
-    movq    44(%esp), %r9    /* initial stack pointer */
+    movq    44(%esp), %14    /* NIL */
+    movq    52(%esp), %r9   /* initial stack pointer */
 #endif
 
     /* Move to the pmap. */
@@ -151,7 +153,7 @@ FUNCTION_START(mezzano_arch_enter_real)
     xorl    %r11d, %r11d
     xorl    %r12d, %r12d
     /* Not r13, holds the entry fref */
-    xorl    %r14d, %r14d
+    /* Not r14, holds NIL */
     xorl    %r15d, %r15d
 
     /* Call the entry function. Single argument call. */
