@@ -105,7 +105,7 @@ FUNCTION_START(mezzano_arch_enter_real)
     movq    20(%esp), %r13   /* entry fref */
     movq    28(%esp), %r12   /* initial process */
     movq    36(%esp), %r8    /* boot info location */
-    movq    44(%esp), %14    /* NIL */
+    movq    44(%esp), %r14   /* NIL */
     movq    52(%esp), %r9   /* initial stack pointer */
 #endif
 
