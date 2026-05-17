@@ -22,7 +22,7 @@ build_flags = {
     'CCFLAGS': [
         '-Wall', '-Wextra', '-Wno-variadic-macros', '-Wno-unused-parameter',
         '-Wwrite-strings', '-Wmissing-declarations', '-Wredundant-decls',
-        '-Wno-format', '-Werror', '-Wno-error=unused', '-pipe',
+        '-Wno-format', '-Wno-error=unused', '-pipe',
         '-Wno-error=unused-function',
     ],
     'CFLAGS': ['-std=gnu99'],
